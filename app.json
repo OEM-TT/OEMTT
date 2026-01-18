@@ -4,12 +4,12 @@
     "slug": "oemtechtalk",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/images/icon.png",
     "scheme": "oemtechtalk",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./assets/images/splash-icon.png",
       "resizeMode": "contain",
       "backgroundColor": "#2563EB"
     },
@@ -48,7 +48,9 @@
       },
       "eas": {
         "projectId": "your-project-id-here"
-      }
+      },
+      "SUPABASE_URL": "https://yoggiqlslhutwjhuhqda.supabase.co",
+      "SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlvZ2dpcWxzbGh1dHdqaHVocWRhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg2OTUwNzQsImV4cCI6MjA4NDI3MTA3NH0.yq8PZbRjcqKYU1-U5mocw5Kfr4JtyA7iN-OBv0AVVVw"
     }
   }
 }

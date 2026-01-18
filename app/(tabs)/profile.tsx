@@ -1,20 +1,13 @@
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Switch, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Switch, Alert, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
 import { useTheme } from '@/contexts/ThemeContext';
-
-// Mock user data - will be replaced with real data from API/Auth
-const MOCK_USER = {
-  name: 'John Technician',
-  email: 'john@example.com',
-  tier: 'free',
-  questionsUsed: 23,
-  questionsLimit: 50,
-};
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function ProfileScreen() {
   const { theme, isDark } = useTheme();
+  const { user, loading, signOut } = useAuth();
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const styles = createStyles(theme);
 
@@ -24,13 +17,44 @@ export default function ProfileScreen() {
       'Are you sure you want to logout?',
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Logout', style: 'destructive', onPress: () => {
-          // TODO: Implement logout
-          console.log('Logging out...');
-        }},
+        {
+          text: 'Logout', style: 'destructive', onPress: async () => {
+            await signOut();
+          }
+        },
       ]
     );
   };
+
+  // Get user's initials for avatar
+  const getInitials = () => {
+    if (user?.user_metadata?.name) {
+      return user.user_metadata.name
+        .split(' ')
+        .map((n: string) => n[0])
+        .join('')
+        .toUpperCase();
+    }
+    if (user?.email) {
+      return user.email.substring(0, 2).toUpperCase();
+    }
+    return 'U';
+  };
+
+  // Get display name
+  const getDisplayName = () => {
+    return user?.user_metadata?.name || user?.email?.split('@')[0] || 'User';
+  };
+
+  if (loading) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]} edges={['bottom']}>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <ActivityIndicator size="large" color={theme.colors.primary} />
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]} edges={['bottom']}>
@@ -39,16 +63,16 @@ export default function ProfileScreen() {
         <View style={[styles.profileHeader, { backgroundColor: isDark ? theme.colors.backgroundSecondary : theme.colors.white }]}>
           <View style={[styles.avatar, { backgroundColor: theme.colors.primary }]}>
             <Text style={styles.avatarText}>
-              {MOCK_USER.name.split(' ').map(n => n[0]).join('')}
+              {getInitials()}
             </Text>
           </View>
-          <Text style={[styles.userName, { color: theme.colors.text }]}>{MOCK_USER.name}</Text>
-          <Text style={[styles.userEmail, { color: theme.colors.textSecondary }]}>{MOCK_USER.email}</Text>
-          
+          <Text style={[styles.userName, { color: theme.colors.text }]}>{getDisplayName()}</Text>
+          <Text style={[styles.userEmail, { color: theme.colors.textSecondary }]}>{user?.email}</Text>
+
           {/* Subscription Badge */}
           <View style={[styles.tierBadge, { backgroundColor: theme.colors.primary + '15' }]}>
             <Text style={[styles.tierText, { color: theme.colors.primary }]}>
-              {MOCK_USER.tier.toUpperCase()} TIER
+              FREE TIER
             </Text>
           </View>
         </View>
@@ -63,18 +87,18 @@ export default function ProfileScreen() {
           </View>
           <View style={styles.progressContainer}>
             <View style={[styles.progressBar, { backgroundColor: theme.colors.border }]}>
-              <View 
+              <View
                 style={[
-                  styles.progressFill, 
-                  { 
+                  styles.progressFill,
+                  {
                     backgroundColor: theme.colors.primary,
-                    width: `${(MOCK_USER.questionsUsed / MOCK_USER.questionsLimit) * 100}%`
+                    width: '0%'
                   }
-                ]} 
+                ]}
               />
             </View>
             <Text style={[styles.usageText, { color: theme.colors.textSecondary }]}>
-              {MOCK_USER.questionsUsed} / {MOCK_USER.questionsLimit} questions
+              0 / 50 questions
             </Text>
           </View>
         </View>
@@ -82,7 +106,7 @@ export default function ProfileScreen() {
         {/* Settings Sections */}
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: theme.colors.textSecondary }]}>ACCOUNT</Text>
-          
+
           <TouchableOpacity style={[styles.settingItem, { backgroundColor: isDark ? theme.colors.backgroundSecondary : theme.colors.white }]}>
             <Ionicons name="person-outline" size={22} color={theme.colors.primary} />
             <Text style={[styles.settingText, { color: theme.colors.text }]}>Edit Profile</Text>
@@ -104,7 +128,7 @@ export default function ProfileScreen() {
 
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: theme.colors.textSecondary }]}>PREFERENCES</Text>
-          
+
           <View style={[styles.settingItem, { backgroundColor: isDark ? theme.colors.backgroundSecondary : theme.colors.white }]}>
             <Ionicons name="notifications-outline" size={22} color={theme.colors.primary} />
             <Text style={[styles.settingText, { color: theme.colors.text }]}>Notifications</Text>
@@ -134,7 +158,7 @@ export default function ProfileScreen() {
 
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: theme.colors.textSecondary }]}>SUPPORT</Text>
-          
+
           <TouchableOpacity style={[styles.settingItem, { backgroundColor: isDark ? theme.colors.backgroundSecondary : theme.colors.white }]}>
             <Ionicons name="help-circle-outline" size={22} color={theme.colors.primary} />
             <Text style={[styles.settingText, { color: theme.colors.text }]}>Help Center</Text>
@@ -155,7 +179,7 @@ export default function ProfileScreen() {
         </View>
 
         {/* Logout Button */}
-        <TouchableOpacity 
+        <TouchableOpacity
           style={[styles.logoutButton, { borderColor: theme.colors.danger }]}
           onPress={handleLogout}
         >
