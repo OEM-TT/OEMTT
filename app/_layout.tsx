@@ -1,5 +1,7 @@
+import 'react-native-url-polyfill/auto';
 import { Stack } from 'expo-router';
 import { ThemeProvider, useTheme } from '@/contexts/ThemeContext';
+import { AuthProvider } from '@/contexts/AuthContext';
 
 function RootNavigator() {
   const { theme } = useTheme();
@@ -46,7 +48,9 @@ function RootNavigator() {
 export default function RootLayout() {
   return (
     <ThemeProvider>
-      <RootNavigator />
+      <AuthProvider>
+        <RootNavigator />
+      </AuthProvider>
     </ThemeProvider>
   );
 }
