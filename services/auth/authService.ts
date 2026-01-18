@@ -27,6 +27,29 @@ export class AuthService {
     await SecureStore.deleteItemAsync(USER_KEY);
   }
 
+  // Password Authentication
+  async signInWithPassword(email: string, password: string): Promise<void> {
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (error) {
+      throw error;
+    }
+  }
+
+  async signUpWithPassword(email: string, password: string): Promise<void> {
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+    });
+
+    if (error) {
+      throw error;
+    }
+  }
+
   // Magic Link Authentication
   async sendMagicLink(email: string): Promise<void> {
     const { error } = await supabase.auth.signInWithOtp({
@@ -48,7 +71,7 @@ export class AuthService {
       console.error('Error getting session:', error);
       return null;
     }
-    
+
     // Store tokens if session exists
     if (data.session) {
       await this.setTokens(
@@ -56,7 +79,7 @@ export class AuthService {
         data.session.refresh_token || ''
       );
     }
-    
+
     return data.session;
   }
 
@@ -66,12 +89,12 @@ export class AuthService {
       console.error('Error getting user:', error);
       return null;
     }
-    
+
     // Cache user data
     if (data.user) {
       await SecureStore.setItemAsync(USER_KEY, JSON.stringify(data.user));
     }
-    
+
     return data.user;
   }
 
@@ -84,7 +107,7 @@ export class AuthService {
   async signOut(): Promise<void> {
     const { error } = await supabase.auth.signOut();
     await this.clearTokens();
-    
+
     if (error) {
       throw error;
     }

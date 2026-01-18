@@ -51,50 +51,74 @@ export default function VerifyScreen() {
 
     try {
       console.log('🔍 Dev Verify Started');
-      console.log('🔍 Input URL:', devUrl);
+      console.log('🔍 Input:', devUrl);
 
-      // Parse URL
-      const cleanUrl = devUrl.trim();
-      if (!cleanUrl) {
-        Alert.alert('Empty URL', 'Please paste the magic link URL first');
+      const cleanInput = devUrl.trim();
+      if (!cleanInput) {
+        Alert.alert('Empty Input', 'Please enter the code from your email');
         setChecking(false);
         return;
       }
 
-      let url: URL;
-      try {
-        url = new URL(cleanUrl);
-      } catch (e) {
-        Alert.alert('Invalid URL', 'Could not parse URL. Make sure you copied the complete link from your email.');
-        setChecking(false);
-        return;
-      }
+      // Check if input is a 6-8 digit code
+      const isOtpCode = /^\d{6,8}$/.test(cleanInput);
 
-      // Extract parameters
-      const token = url.searchParams.get('token');
-      const tokenHash = url.searchParams.get('token_hash');
-      const type = url.searchParams.get('type');
+      let payload: any;
 
-      console.log('🔍 Extracted params:', { token: token?.substring(0, 10) + '...', tokenHash: tokenHash?.substring(0, 10), type });
+      if (isOtpCode) {
+        // Handle OTP code
+        console.log('🔍 Detected OTP code');
+        payload = {
+          email: email,
+          token: cleanInput,
+          type: 'email',
+        };
+      } else {
+        // Handle magic link URL
+        console.log('🔍 Detected magic link URL');
 
-      if (!token && !tokenHash) {
-        Alert.alert('Missing Token', 'The URL does not contain a token parameter. Make sure you copied the full link.');
-        setChecking(false);
-        return;
-      }
+        let url: URL;
+        try {
+          url = new URL(cleanInput);
+        } catch (e) {
+          Alert.alert('Invalid Input', 'Please enter the code from your email (6-8 digits)');
+          setChecking(false);
+          return;
+        }
 
-      if (!type) {
-        Alert.alert('Missing Type', 'The URL does not contain a type parameter. Make sure you copied the full link.');
-        setChecking(false);
-        return;
+        // Extract parameters
+        const token = url.searchParams.get('token');
+        const tokenHash = url.searchParams.get('token_hash');
+        const type = url.searchParams.get('type');
+
+        console.log('🔍 Extracted params:', { token: token?.substring(0, 10) + '...', tokenHash: tokenHash?.substring(0, 10), type });
+
+        if (!token && !tokenHash) {
+          Alert.alert('Missing Token', 'The URL does not contain a token parameter. Make sure you copied the full link.');
+          setChecking(false);
+          return;
+        }
+
+        // Build payload
+        payload = {
+          type: 'email',
+          email: email,
+        };
+
+        if (tokenHash) {
+          payload.token_hash = tokenHash;
+          console.log('🔍 Using token_hash from URL');
+        } else if (token) {
+          payload.token = token;
+          console.log('🔍 Using plain token from URL');
+        }
       }
 
       // Verify with Supabase
       console.log('🔍 Calling Supabase verifyOtp...');
-      const { data, error } = await supabase.auth.verifyOtp({
-        token_hash: tokenHash || token || '',
-        type: type as any,
-      });
+      console.log('🔍 Payload:', { ...payload, token: payload.token ? '******' : undefined });
+
+      const { data, error } = await supabase.auth.verifyOtp(payload);
 
       if (error) {
         console.error('❌ Verification error:', error);
@@ -158,14 +182,14 @@ export default function VerifyScreen() {
           <>
             <Text style={[styles.title, { color: theme.colors.text }]}>Check Your Email</Text>
             <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>
-              Magic link sent to{'\n'}<Text style={{ fontWeight: '600', color: theme.colors.primary }}>{email}</Text>
+              Login code sent to{'\n'}<Text style={{ fontWeight: '600', color: theme.colors.primary }}>{email}</Text>
             </Text>
             <View style={[styles.infoCard, { backgroundColor: theme.colors.backgroundSecondary }]}>
               <Ionicons name="information-circle" size={24} color={theme.colors.primary} />
               <View style={{ flex: 1, marginLeft: theme.spacing.md }}>
                 <Text style={[{ fontSize: 16, fontWeight: '600', marginBottom: 4, color: theme.colors.text }]}>How to sign in:</Text>
                 <Text style={[{ fontSize: 14, lineHeight: 22, color: theme.colors.textSecondary }]}>
-                  1. Open the email{'\n'}2. Click the magic link{'\n'}3. Signed in automatically
+                  1. Open the email{'\n'}2. Enter the code below{'\n'}3. You'll be signed in automatically
                 </Text>
               </View>
             </View>
@@ -181,6 +205,54 @@ export default function VerifyScreen() {
               <Ionicons name="arrow-back" size={20} color={theme.colors.textSecondary} />
               <Text style={{ marginLeft: 4, fontSize: 14, color: theme.colors.textSecondary }}>Back</Text>
             </TouchableOpacity>
+            {/* OTP Code Input */}
+            <View style={{ marginBottom: 24 }}>
+              <Text style={{ fontSize: 14, fontWeight: '600', marginBottom: 8, color: theme.colors.text }}>Enter code from email:</Text>
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                <TextInput
+                  style={{
+                    flex: 1,
+                    borderWidth: 2,
+                    borderColor: theme.colors.primary,
+                    borderRadius: 8,
+                    padding: 16,
+                    fontSize: 24,
+                    textAlign: 'center',
+                    letterSpacing: 6,
+                    fontWeight: '600',
+                    backgroundColor: theme.colors.background,
+                    color: theme.colors.text,
+                  }}
+                  value={devUrl}
+                  onChangeText={setDevUrl}
+                  placeholder="00000000"
+                  placeholderTextColor={theme.colors.textTertiary}
+                  keyboardType="number-pad"
+                  maxLength={8}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+                {devUrl.length >= 6 && (
+                  <TouchableOpacity
+                    style={{
+                      backgroundColor: theme.colors.primary,
+                      borderRadius: 8,
+                      paddingHorizontal: 24,
+                      justifyContent: 'center',
+                    }}
+                    onPress={handleDevVerify}
+                    disabled={checking}
+                  >
+                    {checking ? (
+                      <ActivityIndicator size="small" color={theme.colors.white} />
+                    ) : (
+                      <Text style={{ color: theme.colors.white, fontWeight: '600', fontSize: 16 }}>Verify</Text>
+                    )}
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
+
             <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 12, backgroundColor: theme.colors.backgroundSecondary, borderRadius: 8, marginBottom: 12 }} onPress={() => setShowDev(!showDev)}>
               <Ionicons name="code" size={16} color={theme.colors.textTertiary} />
               <Text style={{ marginLeft: 8, fontSize: 13, color: theme.colors.textTertiary }}>{showDev ? 'Hide' : 'Show'} Dev Mode</Text>
