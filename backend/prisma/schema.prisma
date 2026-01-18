@@ -1,0 +1,207 @@
+generator client {
+  provider = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  extensions = [vector]
+}
+
+// Users table (extends Supabase Auth)
+model User {
+  id                   String   @id @default(uuid())
+  email                String   @unique
+  supabaseUserId       String   @unique @map("supabase_user_id")
+  name                 String?
+  phone                String?
+  role                 String   @default("technician")
+  subscriptionTier     String   @default("free") @map("subscription_tier")
+  subscriptionStatus   String   @default("active") @map("subscription_status")
+  companyId            String?  @map("company_id")
+  stripeCustomerId     String?  @map("stripe_customer_id")
+  createdAt            DateTime @default(now()) @map("created_at")
+  lastActiveAt         DateTime? @map("last_active_at")
+  onboardingCompleted  Boolean  @default(false) @map("onboarding_completed")
+
+  savedUnits           SavedUnit[]
+  questions            Question[]
+  feedback             Feedback[]
+
+  @@index([email])
+  @@index([supabaseUserId])
+  @@map("users")
+}
+
+model OEM {
+  id                  String   @id @default(uuid())
+  name                String   @unique
+  vertical            String
+  website             String?
+  logoUrl             String?  @map("logo_url")
+  documentationPortals String[] @map("documentation_portals")
+  regionsSupported    String[] @map("regions_supported")
+  status              String   @default("active")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  productLines        ProductLine[]
+
+  @@index([vertical])
+  @@map("oems")
+}
+
+model ProductLine {
+  id          String   @id @default(uuid())
+  oemId       String   @map("oem_id")
+  name        String
+  category    String
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  oem         OEM      @relation(fields: [oemId], references: [id], onDelete: Cascade)
+  models      Model[]
+
+  @@index([oemId])
+  @@map("product_lines")
+}
+
+model Model {
+  id                    String   @id @default(uuid())
+  productLineId         String   @map("product_line_id")
+  modelNumber           String   @map("model_number")
+  variants              String[]
+  serialNumberPatterns  String[] @map("serial_number_patterns")
+  yearsActive           Int[]    @map("years_active")
+  specifications        Json?
+  discontinued          Boolean  @default(false)
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+
+  productLine           ProductLine @relation(fields: [productLineId], references: [id], onDelete: Cascade)
+  manuals               Manual[]
+  savedUnits            SavedUnit[]
+  questions             Question[]
+
+  @@index([productLineId])
+  @@index([modelNumber])
+  @@map("models")
+}
+
+model Manual {
+  id              String    @id @default(uuid())
+  modelId         String    @map("model_id")
+  manualType      String    @map("manual_type")
+  title           String
+  revision        String?
+  publishDate     DateTime? @map("publish_date")
+  sourceUrl       String?   @map("source_url")
+  sourceType      String    @default("oem") @map("source_type")
+  storagePath     String?   @map("storage_path")
+  fileHash        String?   @map("file_hash")
+  pageCount       Int?      @map("page_count")
+  language        String    @default("en")
+  confidenceScore Float     @default(1.0) @map("confidence_score")
+  status          String    @default("pending")
+  verifiedAt      DateTime? @map("verified_at")
+  verifiedBy      String?   @map("verified_by")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  model           Model           @relation(fields: [modelId], references: [id], onDelete: Cascade)
+  sections        ManualSection[]
+  questions       Question[]
+  feedback        Feedback[]
+
+  @@index([modelId])
+  @@index([status])
+  @@index([confidenceScore])
+  @@map("manuals")
+}
+
+model ManualSection {
+  id            String   @id @default(uuid())
+  manualId      String   @map("manual_id")
+  sectionTitle  String?  @map("section_title")
+  sectionType   String   @map("section_type")
+  content       String   @db.Text
+  pageReference String?  @map("page_reference")
+  embedding     Unsupported("vector(3072)")?
+  metadata      Json?
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  manual        Manual   @relation(fields: [manualId], references: [id], onDelete: Cascade)
+
+  @@index([manualId])
+  @@index([sectionType])
+  @@map("manual_sections")
+}
+
+model SavedUnit {
+  id           String    @id @default(uuid())
+  userId       String    @map("user_id")
+  modelId      String    @map("model_id")
+  nickname     String
+  serialNumber String?   @map("serial_number")
+  installDate  DateTime? @map("install_date")
+  location     String?
+  notes        String?   @db.Text
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  model        Model     @relation(fields: [modelId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([modelId])
+  @@map("saved_units")
+}
+
+model Question {
+  id               String    @id @default(uuid())
+  userId           String    @map("user_id")
+  modelId          String    @map("model_id")
+  manualId         String?   @map("manual_id")
+  questionText     String    @map("question_text") @db.Text
+  context          Json?
+  answerText       String?   @map("answer_text") @db.Text
+  answerSources    Json?     @map("answer_sources")
+  confidenceScore  Float?    @map("confidence_score")
+  processingTimeMs Int?      @map("processing_time_ms")
+  createdAt        DateTime  @default(now()) @map("created_at")
+
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  model            Model     @relation(fields: [modelId], references: [id], onDelete: Cascade)
+  manual           Manual?   @relation(fields: [manualId], references: [id], onDelete: SetNull)
+  feedback         Feedback[]
+
+  @@index([userId])
+  @@index([modelId])
+  @@index([createdAt])
+  @@map("questions")
+}
+
+model Feedback {
+  id              String   @id @default(uuid())
+  userId          String   @map("user_id")
+  questionId      String?  @map("question_id")
+  manualId        String?  @map("manual_id")
+  feedbackType    String   @map("feedback_type")
+  rating          Int?
+  rejectionReason String?  @map("rejection_reason")
+  comment         String?  @db.Text
+  userWeight      Float    @default(1.0) @map("user_weight")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  question        Question? @relation(fields: [questionId], references: [id], onDelete: SetNull)
+  manual          Manual?  @relation(fields: [manualId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([questionId])
+  @@index([manualId])
+  @@index([feedbackType])
+  @@map("feedback")
+}
