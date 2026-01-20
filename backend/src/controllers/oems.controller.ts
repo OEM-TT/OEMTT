@@ -47,7 +47,7 @@ export async function getOEMById(req: Request, res: Response, next: NextFunction
     const { id } = req.params;
 
     const oem = await prisma.oEM.findUnique({
-      where: { id },
+      where: { id: id as string },
       include: {
         productLines: {
           orderBy: {
@@ -58,7 +58,7 @@ export async function getOEMById(req: Request, res: Response, next: NextFunction
     });
 
     if (!oem) {
-      throw new AppError('OEM not found', 404, 'NOT_FOUND');
+      throw new AppError(404, 'NOT_FOUND');
     }
 
     return res.json({
@@ -81,16 +81,16 @@ export async function getOEMProductLines(req: Request, res: Response, next: Next
 
     // Verify OEM exists
     const oem = await prisma.oEM.findUnique({
-      where: { id },
+      where: { id: id as string },
     });
 
     if (!oem) {
-      throw new AppError('OEM not found', 404, 'NOT_FOUND');
+      throw new AppError(404, 'NOT_FOUND');
     }
 
     const productLines = await prisma.productLine.findMany({
       where: {
-        oemId: id,
+        oemId: id as string,
         ...(category && { category: category as string }),
       },
       orderBy: {
@@ -125,19 +125,19 @@ export async function getProductLineModels(req: Request, res: Response, next: Ne
 
     // Verify product line exists
     const productLine = await prisma.productLine.findUnique({
-      where: { id },
+      where: { id: id as string },
       include: {
         oem: true,
       },
     });
 
     if (!productLine) {
-      throw new AppError('Product line not found', 404, 'NOT_FOUND');
+      throw new AppError(404, 'NOT_FOUND');
     }
 
     const models = await prisma.model.findMany({
       where: {
-        productLineId: id,
+        productLineId: id as string,
         ...(discontinued !== undefined && { discontinued: discontinued === 'true' }),
       },
       orderBy: {

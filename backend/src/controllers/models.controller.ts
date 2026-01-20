@@ -11,7 +11,7 @@ export async function searchModels(req: Request, res: Response, next: NextFuncti
     const { q, limit = '20' } = req.query;
 
     if (!q || typeof q !== 'string') {
-      throw new AppError('Search query is required', 400, 'VALIDATION_ERROR');
+      throw new AppError(400, 'VALIDATION_ERROR');
     }
 
     const searchQuery = q.trim();
@@ -82,7 +82,7 @@ export async function getModelById(req: Request, res: Response, next: NextFuncti
     const { id } = req.params;
 
     const model = await prisma.model.findUnique({
-      where: { id },
+      where: { id: id as string },
       include: {
         productLine: {
           include: {
@@ -107,7 +107,7 @@ export async function getModelById(req: Request, res: Response, next: NextFuncti
     });
 
     if (!model) {
-      throw new AppError('Model not found', 404, 'NOT_FOUND');
+      throw new AppError(404, 'NOT_FOUND');
     }
 
     return res.json({
@@ -130,7 +130,7 @@ export async function getModelManuals(req: Request, res: Response, next: NextFun
 
     // Verify model exists
     const model = await prisma.model.findUnique({
-      where: { id },
+      where: { id: id as string },
       include: {
         productLine: {
           include: {
@@ -141,12 +141,12 @@ export async function getModelManuals(req: Request, res: Response, next: NextFun
     });
 
     if (!model) {
-      throw new AppError('Model not found', 404, 'NOT_FOUND');
+      throw new AppError(404, 'NOT_FOUND');
     }
 
     const manuals = await prisma.manual.findMany({
       where: {
-        modelId: id,
+        modelId: id as string,
         status: status as string,
         ...(type && { manualType: type as string }),
       },
