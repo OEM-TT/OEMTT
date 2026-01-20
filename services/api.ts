@@ -1,10 +1,26 @@
 import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'axios';
+import { Platform } from 'react-native';
+import Constants from 'expo-constants';
 import { supabase } from './supabase';
 
 // API Configuration
-const API_URL = __DEV__ 
-  ? 'http://localhost:3000/api'
-  : 'https://api.oemtechtalk.com/api'; // Production URL
+// Priority: Environment variable > Default
+const getApiUrl = () => {
+  // Check if API_URL is provided in app.json extra config
+  const configUrl = Constants.expoConfig?.extra?.API_URL;
+  
+  if (configUrl) {
+    console.log('🌐 Using API URL from config:', configUrl);
+    return configUrl;
+  }
+  
+  // Fallback to localhost (for local dev)
+  const localUrl = 'http://localhost:3000/api';
+  console.log('🌐 Using local API URL:', localUrl);
+  return localUrl;
+};
+
+const API_URL = getApiUrl();
 
 // Create axios instance
 const apiClient: AxiosInstance = axios.create({
