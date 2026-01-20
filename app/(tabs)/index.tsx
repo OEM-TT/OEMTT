@@ -60,7 +60,7 @@ export default function HomeScreen() {
               <View style={styles.iconContainer}>
                 <Ionicons name="search" size={28} color={theme.colors.white} />
               </View>
-              <Text style={styles.actionCardTitle}>brent is gey boi</Text>
+              <Text style={styles.actionCardTitle}>Search Products</Text>
               <Text style={styles.actionCardDescription}>
                 Find technical specs and manuals instantly
               </Text>
