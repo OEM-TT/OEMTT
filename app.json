@@ -54,7 +54,7 @@
       "eas": {
         "projectId": "your-project-id-here"
       },
-      "API_URL": "https://your-railway-url.up.railway.app/api",
+      "API_URL": "http://localhost:3000/api",
       "SUPABASE_URL": "https://yoggiqlslhutwjhuhqda.supabase.co",
       "SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlvZ2dpcWxzbGh1dHdqaHVocWRhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg2OTUwNzQsImV4cCI6MjA4NDI3MTA3NH0.yq8PZbRjcqKYU1-U5mocw5Kfr4JtyA7iN-OBv0AVVVw"
     }
