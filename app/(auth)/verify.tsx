@@ -128,13 +128,29 @@ export default function VerifyScreen() {
       }
 
       console.log('✅ Verification successful');
-      console.log('🔍 Checking for session...');
+      console.log('🔍 Verification data:', data.session ? 'Session received' : 'No session');
 
-      // Check session
+      // The session should be automatically saved by Supabase to SecureStore
+      // Let's verify it was actually saved
+      if (data.session) {
+        console.log('💾 Session data received from verifyOtp, should be auto-saved to SecureStore');
+        console.log('🔑 ACCESS TOKEN (copy this for API testing):');
+        console.log(data.session.access_token);
+        console.log('🔑 Token expires:', new Date(data.session.expires_at! * 1000).toLocaleString());
+
+        // Explicitly save tokens to ensure persistence
+        await authService.setTokens(
+          data.session.access_token,
+          data.session.refresh_token || ''
+        );
+        console.log('✅ Tokens explicitly saved to SecureStore');
+      }
+
+      // Check session (should be there now)
       const session = await authService.getSession();
 
       if (session) {
-        console.log('✅ Session found!');
+        console.log('✅ Session confirmed from getSession()!');
         setIsVerified(true);
 
         // Sync with backend (optional, may fail if backend not running)

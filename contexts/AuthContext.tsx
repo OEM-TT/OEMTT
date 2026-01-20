@@ -40,16 +40,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const checkAuth = async () => {
     try {
+      console.log('🔐 Checking for existing session...');
       const session = await authService.getSession();
+      
       if (session) {
+        console.log('✅ Session found! Expires:', new Date(session.expires_at! * 1000).toLocaleString());
         const currentUser = await authService.getUser();
-        setUser(currentUser);
         
-        // Sync with backend
-        await authService.syncUserWithBackend();
+        if (currentUser) {
+          console.log('✅ User authenticated:', currentUser.email);
+        setUser(currentUser);
+        } else {
+          console.log('⚠️ Session exists but no user found');
+        }
+      } else {
+        console.log('ℹ️ No existing session found');
       }
     } catch (error) {
-      console.error('Auth check failed:', error);
+      console.error('❌ Auth check failed:', error);
     } finally {
       setLoading(false);
     }
