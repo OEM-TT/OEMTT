@@ -1,10 +1,11 @@
 import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'axios';
 import { supabase } from './supabase';
+import Constants from 'expo-constants';
 
-// API Configuration
-const API_URL = __DEV__ 
-  ? 'http://localhost:3000/api'
-  : 'https://api.oemtechtalk.com/api'; // Production URL
+// API Configuration - Read from app.json
+const API_URL = Constants.expoConfig?.extra?.API_URL || 'http://localhost:3000/api';
+
+console.log('🌐 API_URL being used:', API_URL);
 
 // Create axios instance
 const apiClient: AxiosInstance = axios.create({
@@ -24,7 +25,7 @@ apiClient.interceptors.request.use(
       
       if (session?.access_token && config.headers) {
         config.headers.Authorization = `Bearer ${session.access_token}`;
-        console.log('🔑 API request with token:', config.method?.toUpperCase(), config.url);
+        console.log('🔑 API request:', config.method?.toUpperCase(), `${config.baseURL}${config.url}`);
       } else {
         console.warn('⚠️ No active session or token found');
       }
