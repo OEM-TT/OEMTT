@@ -100,7 +100,7 @@ export async function getSavedUnitById(
     // Get saved unit
     const savedUnit = await prisma.savedUnit.findFirst({
       where: {
-        id,
+        id: id as string,
         userId: user.id, // Ensure user owns this saved unit
       },
       include: {
@@ -248,7 +248,7 @@ export async function updateSavedUnit(
     // Verify saved unit exists and belongs to user
     const existingSavedUnit = await prisma.savedUnit.findFirst({
       where: {
-        id,
+        id: id as string,
         userId: user.id,
       },
     });
@@ -267,7 +267,7 @@ export async function updateSavedUnit(
     if (data.notes !== undefined) updateData.notes = data.notes;
 
     const updatedSavedUnit = await prisma.savedUnit.update({
-      where: { id },
+      where: { id: id as string },
       data: updateData,
       include: {
         model: {
@@ -319,7 +319,7 @@ export async function deleteSavedUnit(
     // Verify saved unit exists and belongs to user
     const savedUnit = await prisma.savedUnit.findFirst({
       where: {
-        id,
+        id: id as string,
         userId: user.id,
       },
     });
@@ -330,7 +330,7 @@ export async function deleteSavedUnit(
 
     // Delete saved unit
     await prisma.savedUnit.delete({
-      where: { id },
+      where: { id: id as string },
     });
 
     res.json({

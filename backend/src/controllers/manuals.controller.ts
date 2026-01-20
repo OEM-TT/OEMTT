@@ -11,7 +11,7 @@ export async function getManualById(req: Request, res: Response, next: NextFunct
     const { id } = req.params;
 
     const manual = await prisma.manual.findUnique({
-      where: { id },
+      where: { id: id as string },
       include: {
         model: {
           include: {
@@ -31,7 +31,7 @@ export async function getManualById(req: Request, res: Response, next: NextFunct
     });
 
     if (!manual) {
-      throw new AppError('Manual not found', 404, 'NOT_FOUND');
+      throw new AppError(404, 'NOT_FOUND');
     }
 
     return res.json({
@@ -54,7 +54,7 @@ export async function getManualSections(req: Request, res: Response, next: NextF
 
     // Verify manual exists
     const manual = await prisma.manual.findUnique({
-      where: { id },
+      where: { id: id as string },
       select: {
         id: true,
         title: true,
@@ -68,7 +68,7 @@ export async function getManualSections(req: Request, res: Response, next: NextF
     });
 
     if (!manual) {
-      throw new AppError('Manual not found', 404, 'NOT_FOUND');
+      throw new AppError(404, 'NOT_FOUND');
     }
 
     const limitNum = parseInt(limit as string, 10);
@@ -76,7 +76,7 @@ export async function getManualSections(req: Request, res: Response, next: NextF
 
     const sections = await prisma.manualSection.findMany({
       where: {
-        manualId: id,
+        manualId: id as string,
         ...(type && { sectionType: type as string }),
         ...(pageNum && { pageReference: { contains: pageNum.toString() } }),
       },
@@ -122,7 +122,7 @@ export async function searchManualSections(req: Request, res: Response, next: Ne
     const { q, modelId, type, limit = '20' } = req.query;
 
     if (!q || typeof q !== 'string') {
-      throw new AppError('Search query is required', 400, 'VALIDATION_ERROR');
+      throw new AppError(400, 'VALIDATION_ERROR');
     }
 
     const searchQuery = q.trim();
