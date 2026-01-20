@@ -1,5 +1,5 @@
 import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'axios';
-import * as SecureStore from 'expo-secure-store';
+import { supabase } from './supabase';
 
 // API Configuration
 const API_URL = __DEV__ 
@@ -19,12 +19,17 @@ const apiClient: AxiosInstance = axios.create({
 apiClient.interceptors.request.use(
   async (config: InternalAxiosRequestConfig) => {
     try {
-      const token = await SecureStore.getItemAsync('access_token');
-      if (token && config.headers) {
-        config.headers.Authorization = `Bearer ${token}`;
+      // Get Supabase session
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (session?.access_token && config.headers) {
+        config.headers.Authorization = `Bearer ${session.access_token}`;
+        console.log('🔑 API request with token:', config.method?.toUpperCase(), config.url);
+      } else {
+        console.warn('⚠️ No active session or token found');
       }
     } catch (error) {
-      console.error('Error getting token from secure store:', error);
+      console.error('❌ Error getting session:', error);
     }
     return config;
   },
@@ -44,28 +49,23 @@ apiClient.interceptors.response.use(
       originalRequest._retry = true;
 
       try {
-        // Try to refresh token
-        const refreshToken = await SecureStore.getItemAsync('refresh_token');
-        if (refreshToken) {
-          const response = await axios.post(`${API_URL}/auth/refresh`, {
-            refreshToken,
-          });
-
-          const { accessToken } = response.data;
-          await SecureStore.setItemAsync('access_token', accessToken);
+        // Try to refresh token using Supabase
+        const { data: { session }, error: refreshError } = await supabase.auth.refreshSession();
+        
+        if (session?.access_token && !refreshError) {
+          console.log('🔄 Token refreshed successfully');
 
           // Retry original request with new token
           if (originalRequest.headers) {
-            originalRequest.headers.Authorization = `Bearer ${accessToken}`;
+            originalRequest.headers.Authorization = `Bearer ${session.access_token}`;
           }
           return apiClient(originalRequest);
+        } else {
+          console.error('❌ Token refresh failed:', refreshError);
+          // Supabase will handle clearing the session
         }
       } catch (refreshError) {
-        // Refresh failed - clear tokens and redirect to login
-        await SecureStore.deleteItemAsync('access_token');
-        await SecureStore.deleteItemAsync('refresh_token');
-        // TODO: Emit event to redirect to login
-        console.error('Token refresh failed:', refreshError);
+        console.error('❌ Token refresh error:', refreshError);
       }
     }
 

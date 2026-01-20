@@ -6,17 +6,82 @@ import { useState } from 'react';
 import { useRouter } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
 import { authService } from '@/services/auth';
+import { supabase } from '@/services/supabase';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function LoginScreen() {
   const { theme, isDark } = useTheme();
   const router = useRouter();
+  const { refreshUser } = useAuth();
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [devMode, setDevMode] = useState(false);
   const styles = createStyles(theme);
 
   const validateEmail = (email: string) => {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  };
+
+  const handleDevModeLogin = async () => {
+    if (!validateEmail(email)) {
+      setError('Please enter a valid email address');
+      return;
+    }
+
+    setError('');
+    setLoading(true);
+
+    try {
+      console.log('🔧 DEV MODE: Direct login for:', email);
+      
+      // Call backend dev login endpoint
+      const response = await fetch('http://localhost:3000/api/auth/dev-login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || data.message || 'Dev login failed');
+      }
+
+      console.log('✅ Dev login successful!');
+      console.log('  - User:', data.user.email);
+      console.log('  - User ID:', data.user.id);
+
+      // Set the session in Supabase client
+      const { error: sessionError } = await supabase.auth.setSession({
+        access_token: data.session.access_token,
+        refresh_token: data.session.refresh_token,
+      });
+
+      if (sessionError) {
+        throw sessionError;
+      }
+
+      console.log('✅ Session set successfully!');
+      
+      // Refresh the auth context
+      await refreshUser();
+
+      console.log('✅ Auth context refreshed - navigating to tabs...');
+      
+      // Navigate to the app
+      router.replace('/(tabs)');
+
+    } catch (err: any) {
+      console.error('❌ Dev mode login failed:', err);
+      const errorMessage = err.message || 'Dev mode login failed';
+      setError(errorMessage);
+      Alert.alert('Dev Mode Error', errorMessage);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleSendMagicLink = async () => {
@@ -29,11 +94,16 @@ export default function LoginScreen() {
     setLoading(true);
 
     try {
+      console.log('📧 Sending OTP to:', email);
       await authService.sendMagicLink(email);
+      console.log('✅ OTP sent successfully! Check your email.');
       router.push({ pathname: '/(auth)/verify', params: { email } });
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to send magic link');
-      Alert.alert('Error', error || 'Failed to send magic link. Please try again.');
+      console.error('❌ Failed to send OTP:', err);
+      console.error('Error details:', JSON.stringify(err, null, 2));
+      const errorMessage = err.message || err.response?.data?.message || 'Failed to send login code';
+      setError(errorMessage);
+      Alert.alert('Error', errorMessage + '\n\nPlease try again or check your email address.');
     } finally {
       setLoading(false);
     }
@@ -96,20 +166,41 @@ export default function LoginScreen() {
             <Text style={[styles.error, { color: theme.colors.danger }]}>{error}</Text>
           ) : null}
 
+          {/* Dev Mode Toggle */}
+          <TouchableOpacity
+            onPress={() => setDevMode(!devMode)}
+            style={styles.devModeToggle}
+          >
+            <Ionicons 
+              name={devMode ? "checkmark-circle" : "ellipse-outline"} 
+              size={20} 
+              color={devMode ? theme.colors.success : theme.colors.textSecondary} 
+            />
+            <Text style={[styles.devModeText, { color: theme.colors.textSecondary }]}>
+              Dev Mode (Skip Email)
+            </Text>
+          </TouchableOpacity>
+
           {/* Sign In Button */}
           <TouchableOpacity
             style={[styles.button, loading && styles.buttonDisabled]}
-            onPress={handleSendMagicLink}
+            onPress={devMode ? handleDevModeLogin : handleSendMagicLink}
             disabled={loading || !email}
           >
             <LinearGradient
-              colors={loading || !email ? [theme.colors.disabled, theme.colors.disabled] : [theme.colors.primary, theme.colors.primaryDark]}
+              colors={loading || !email ? [theme.colors.disabled, theme.colors.disabled] : devMode ? [theme.colors.warning, theme.colors.warningDark] : [theme.colors.primary, theme.colors.primaryDark]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
               style={styles.buttonGradient}
             >
               {loading ? (
-                <Text style={styles.buttonText}>Sending...</Text>
+                <Text style={styles.buttonText}>Processing...</Text>
+              ) : devMode ? (
+                <>
+                  <Ionicons name="bug" size={20} color={theme.colors.white} style={{ marginRight: 8 }} />
+                  <Text style={styles.buttonText}>Dev Login</Text>
+                  <Ionicons name="arrow-forward" size={20} color={theme.colors.white} />
+                </>
               ) : (
                 <>
                   <Text style={styles.buttonText}>Send Magic Link</Text>
@@ -199,6 +290,17 @@ const createStyles = (theme: any) => StyleSheet.create({
     fontSize: 14,
     marginBottom: theme.spacing.md,
     marginTop: -theme.spacing.xs,
+  },
+  devModeToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+    marginBottom: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+  },
+  devModeText: {
+    fontSize: 14,
+    fontWeight: '500',
   },
   button: {
     borderRadius: theme.borderRadius.lg,
