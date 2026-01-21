@@ -153,11 +153,15 @@ export default function VerifyScreen() {
         console.log('✅ Session confirmed from getSession()!');
         setIsVerified(true);
 
-        // Sync with backend (optional, may fail if backend not running)
+        // Create user record in database immediately after verification
         try {
-          await authService.syncUserWithBackend();
+          console.log('🔄 Creating user record in database...');
+          const { usersService } = await import('@/services/api/users.service');
+          await usersService.getMe(); // This calls /api/users/me which auto-creates the user
+          console.log('✅ User record created in database');
         } catch (e) {
-          console.log('Backend sync failed (optional):', e);
+          console.error('❌ Failed to create user record:', e);
+          // Continue anyway - middleware will create it on next API call
         }
 
         // Refresh the AuthContext so it knows we're logged in
