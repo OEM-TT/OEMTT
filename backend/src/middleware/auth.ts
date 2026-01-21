@@ -32,6 +32,22 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
       email: data.user.email!,
     };
 
+    // Auto-create user in public.users table if they don't exist
+    const { prisma } = await import('../config/database');
+    let appUser = await prisma.user.findUnique({
+      where: { supabaseUserId: req.user.id },
+    });
+
+    if (!appUser) {
+      console.log(`Creating new user record for Supabase user: ${req.user.email}`);
+      appUser = await prisma.user.create({
+        data: {
+          email: req.user.email,
+          supabaseUserId: req.user.id,
+        },
+      });
+    }
+
     next();
   } catch (error) {
     next(error);

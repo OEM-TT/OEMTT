@@ -42,14 +42,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       console.log('🔐 Checking for existing session...');
       const session = await authService.getSession();
-      
+
       if (session) {
         console.log('✅ Session found! Expires:', new Date(session.expires_at! * 1000).toLocaleString());
         const currentUser = await authService.getUser();
-        
+
         if (currentUser) {
           console.log('✅ User authenticated:', currentUser.email);
-        setUser(currentUser);
+          setUser(currentUser);
+
+          // Call /api/users/me to ensure user record exists in app's database
+          console.log('🔄 Calling /users/me to sync user...');
+          try {
+            const { usersService } = await import('@/services/api/users.service');
+            await usersService.getMe();
+            console.log('✅ User synced with backend database.');
+          } catch (apiError) {
+            console.error('❌ Failed to sync user with backend database:', apiError);
+          }
         } else {
           console.log('⚠️ Session exists but no user found');
         }
