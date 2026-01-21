@@ -181,7 +181,7 @@ export default function UnitDetailsScreen() {
             style={[styles.actionButton, styles.primaryAction]}
             onPress={handleAskAI}
           >
-            <Ionicons name="chatbubbles" size={24} color="#FFF" />
+            <Ionicons name="chatbubbles" size={24} color="#8338ec" />
             <Text style={styles.actionButtonTextPrimary}>Ask AI About This Unit</Text>
           </TouchableOpacity>
         </View>
