@@ -37,7 +37,6 @@ function RootNavigator() {
       <Stack.Screen
         name="(modals)"
         options={{
-          presentation: 'modal',
           headerShown: false,
         }}
       />

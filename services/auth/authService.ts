@@ -50,9 +50,13 @@ export class AuthService {
     }
   }
 
-  // Magic Link Authentication
+  // Magic Link Authentication (OTP via email)
   async sendMagicLink(email: string): Promise<void> {
-    const { error } = await supabase.auth.signInWithOtp({
+    console.log('📧 authService.sendMagicLink() called');
+    console.log('  - Email:', email);
+    console.log('  - Calling Supabase signInWithOtp...');
+
+    const { data, error } = await supabase.auth.signInWithOtp({
       email,
       options: {
         emailRedirectTo: 'oemtechtalk://auth/verify',
@@ -60,24 +64,40 @@ export class AuthService {
     });
 
     if (error) {
+      console.error('❌ Supabase signInWithOtp error:', error);
+      console.error('  - Error name:', error.name);
+      console.error('  - Error message:', error.message);
+      console.error('  - Error status:', (error as any).status);
       throw error;
     }
+
+    console.log('✅ Supabase signInWithOtp successful');
+    console.log('  - Response data:', data);
+    console.log('📬 Check your email for the 8-digit code!');
   }
 
   // Session Management
   async getSession() {
+    console.log('📖 authService.getSession() called...');
     const { data, error } = await supabase.auth.getSession();
+
     if (error) {
-      console.error('Error getting session:', error);
+      console.error('❌ Error getting session:', error);
       return null;
     }
 
-    // Store tokens if session exists
     if (data.session) {
+      console.log('✅ Session retrieved from Supabase/SecureStore');
+      console.log('  - Expires:', new Date(data.session.expires_at! * 1000).toLocaleString());
+      console.log('  - User:', data.session.user.email);
+
+      // Store tokens if session exists (ensures our custom storage is in sync)
       await this.setTokens(
         data.session.access_token,
         data.session.refresh_token || ''
       );
+    } else {
+      console.log('ℹ️ No session found in Supabase/SecureStore');
     }
 
     return data.session;
@@ -117,6 +137,34 @@ export class AuthService {
   async isAuthenticated(): Promise<boolean> {
     const session = await this.getSession();
     return !!session;
+  }
+
+  // Dev Mode Login (Development Only)
+  async devLogin(email: string): Promise<{ access_token: string; refresh_token: string } | null> {
+    if (!__DEV__) {
+      console.warn('Dev login is only available in development mode');
+      return null;
+    }
+
+    try {
+      console.log('🔧 DEV MODE: Logging in with:', email);
+      const response = await api.post('/auth/dev-login', { email });
+
+      if (response.success && response.session) {
+        const { access_token, refresh_token } = response.session;
+
+        // Store tokens
+        await this.setTokens(access_token, refresh_token);
+
+        console.log('✅ Dev login successful');
+        return { access_token, refresh_token };
+      }
+
+      return null;
+    } catch (error) {
+      console.error('❌ Dev login failed:', error);
+      return null;
+    }
   }
 
   // Backend Integration
