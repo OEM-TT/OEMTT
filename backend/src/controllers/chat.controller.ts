@@ -250,7 +250,7 @@ export async function askQuestion(req: AuthRequest, res: Response) {
  * GET /api/chat/question/:questionId
  */
 export async function getQuestionById(req: AuthRequest, res: Response) {
-  const { questionId } = req.params;
+  const questionId = Array.isArray(req.params.questionId) ? req.params.questionId[0] : req.params.questionId;
   const supabaseUserId = req.user!.id;
 
   // Look up the internal database user ID
@@ -268,25 +268,12 @@ export async function getQuestionById(req: AuthRequest, res: Response) {
       id: questionId,
       userId: dbUser.id, // Ensure user owns this question
     },
-    select: {
-      id: true,
-      questionText: true,
-      answerText: true,
-      confidenceScore: true,
-      processingTimeMs: true,
-      answerSources: true,
-      createdAt: true,
+    include: {
       model: {
-        select: {
-          modelNumber: true,
+        include: {
           productLine: {
-            select: {
-              name: true,
-              oem: {
-                select: {
-                  name: true,
-                },
-              },
+            include: {
+              oem: true,
             },
           },
         },
