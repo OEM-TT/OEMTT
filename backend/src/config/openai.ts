@@ -20,7 +20,7 @@ export const MODELS = {
   // Chat models
   CHAT_SIMPLE: 'gpt-4o-mini',      // $0.15 / $0.60 per 1M tokens (in/out)
   CHAT_COMPLEX: 'gpt-4o',          // $2.50 / $10.00 per 1M tokens (in/out)
-  
+
   // Embedding model
   EMBEDDING: 'text-embedding-3-small', // $0.02 per 1M tokens
 } as const;
@@ -60,9 +60,12 @@ export function calculateCost(
   if (model === MODELS.EMBEDDING) {
     return (inputTokens / 1_000_000) * COSTS[MODELS.EMBEDDING];
   }
-  
-  const { input, output } = COSTS[model as keyof typeof COSTS];
-  return (inputTokens / 1_000_000) * input + (outputTokens / 1_000_000) * output;
+
+  const cost = COSTS[model as keyof typeof COSTS];
+  if (typeof cost === 'number') {
+    return (inputTokens / 1_000_000) * cost;
+  }
+  return (inputTokens / 1_000_000) * cost.input + (outputTokens / 1_000_000) * cost.output;
 }
 
 export default openai;

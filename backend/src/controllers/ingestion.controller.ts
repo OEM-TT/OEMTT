@@ -19,7 +19,7 @@ import { AppError } from '@/middleware/errorHandler';
  * This is an admin/dev endpoint for on-demand manual processing.
  */
 export async function processManual(req: Request, res: Response) {
-    const { manualId } = req.params;
+    const manualId = Array.isArray(req.params.manualId) ? req.params.manualId[0] : req.params.manualId;
 
     console.log(`\n${'='.repeat(60)}`);
     console.log(`📚 Processing Manual: ${manualId}`);
@@ -182,7 +182,7 @@ export async function processManual(req: Request, res: Response) {
  * GET /api/ingestion/status/:manualId
  */
 export async function getProcessingStatus(req: Request, res: Response) {
-    const { manualId } = req.params;
+    const manualId = Array.isArray(req.params.manualId) ? req.params.manualId[0] : req.params.manualId;
 
     const manual = await prisma.manual.findUnique({
         where: { id: manualId },
