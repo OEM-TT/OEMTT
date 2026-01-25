@@ -1,8 +1,8 @@
 # OEM TechTalk — Master Plan & Technical Specification
 
-**Last Updated:** January 19, 2026  
-**Status:** Phase 0 Complete ✅ → Phase 1 - Core Infrastructure ✅ COMPLETE  
-**Current Version:** 0.4.0
+**Last Updated:** January 24, 2026  
+**Status:** Phase 1 Complete ✅ → Phase 2 In Progress (Manual Ingestion & AI Chat) 🚀  
+**Current Version:** 0.5.0
 
 ## 🎉 MAJOR PROGRESS UPDATE
 
@@ -100,7 +100,46 @@ All immediate tasks completed:
 3. ✅ Saved Units CRUD UI (Library screen with real data)
 4. ✅ Context Builder Modal (Add Unit flow with model search)
 
-**Next Phase: Phase 2 - Manual Discovery & Ingestion**
+### ✅ Phase 2 - AI Chat System (January 24, 2026) **80% COMPLETE**
+
+**Manual Ingestion & Processing:**
+- [x] PDF processing pipeline (download, extract, chunk) ✅
+- [x] OpenAI embeddings integration (`text-embedding-3-small`) ✅
+- [x] Vector storage with pgvector (1536 dimensions) ✅
+- [x] Manual ingestion API endpoints ✅
+- [x] Processed Carrier 25VNA8 manual (706 sections) ✅
+- [ ] Batch processing for multiple manuals (future)
+- [ ] Perplexity discovery integration (deferred)
+
+**AI Chat Implementation:**
+- [x] Context gathering system (unit + model + manuals) ✅
+- [x] Vector similarity search (cosine distance) ✅
+- [x] GPT-4o-mini integration for cost-effective answers ✅
+- [x] Streaming SSE responses ✅
+- [x] System prompt builder with safety warnings ✅
+- [x] Chat API endpoints (`/api/chat/ask`, `/api/chat/history`) ✅
+- [x] Question/answer storage in database ✅
+- [x] Source citation with manual titles and pages ✅
+
+**Frontend Chat UI:**
+- [x] Real-time chat interface with streaming ✅
+- [x] Chat history display on unit details screen ✅
+- [x] Previous chat loading and viewing ✅
+- [x] Loading states for history ✅
+- [x] Source citations in responses ✅
+- [x] Suggested questions ✅
+- [ ] Feedback system (👍👎) - Phase 3
+- [ ] Follow-up questions - Phase 3
+
+**What Works Now:**
+1. Ask AI questions about any saved unit with Carrier 25VNA8 model
+2. Get real-time streaming responses with manual citations
+3. View previous chat history
+4. Tap previous chats to see full conversations
+5. Automatic user sync on first chat
+6. Cost tracking per question (~$0.0003 per simple question)
+
+**Next Phase: Phase 3 - Multi-Model Support & Feedback System**
 
 ---
 
@@ -2466,6 +2505,7 @@ jobs:
 
 | Version | Date | Changes | Author |
 |---------|------|---------|--------|
+| 0.5.0 | 2026-01-24 | AI Chat System 80% complete - Streaming chat, embeddings, history, citations | System |
 | 0.4.0 | 2026-01-19 | Phase 1 COMPLETE - Full CRUD, API client, Context Builder, Library UI | System |
 | 0.3.0 | 2026-01-19 | Authentication complete, Phase 0 complete, Phase 1 in progress | System |
 | 0.2.0 | 2026-01-18 | Added progress tracking, Expo SDK 54 upgrade | System |

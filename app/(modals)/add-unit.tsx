@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import {
   View,
   Text,
@@ -38,6 +39,14 @@ export default function AddUnitModal() {
   const [location, setLocation] = useState('');
   const [notes, setNotes] = useState('');
 
+  useEffect(() => {
+    if (selectedModel) {
+      const oemName = selectedModel.productLine?.oem?.name || '';
+      const modelNumber = selectedModel.modelNumber || '';
+      setNickname(`${oemName} ${modelNumber}`.trim());
+    }
+  }, [selectedModel]);
+
   // Search for models
   const handleSearch = async () => {
     if (searchQuery.trim().length === 0) return;
@@ -46,7 +55,7 @@ export default function AddUnitModal() {
     try {
       const results = await modelsService.search(searchQuery, 10);
       setSearchResults(results);
-      
+
       if (results.count === 0) {
         Alert.alert('No Results', 'No models found matching your search. Try a different model number.');
       } else {
@@ -202,14 +211,12 @@ export default function AddUnitModal() {
   // Render step 3: Unit details
   const renderDetailsStep = () => (
     <>
-      <TouchableOpacity style={styles.backButton} onPress={() => setStep('select-model')}>
-        <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
-      </TouchableOpacity>
 
-      <Text style={[styles.title, { color: theme.colors.text }]}>Unit Details</Text>
+
+      {/* <Text style={[styles.title, { color: theme.colors.text }]}>Unit Details</Text>
       <Text style={[styles.description, { color: theme.colors.textSecondary }]}>
         {selectedModel?.productLine?.oem?.name} {selectedModel?.modelNumber}
-      </Text>
+      </Text> */}
 
       <ScrollView style={styles.formScroll} showsVerticalScrollIndicator={false}>
         <View style={styles.formGroup}>
@@ -230,7 +237,7 @@ export default function AddUnitModal() {
           <Text style={[styles.label, { color: theme.colors.text }]}>Serial Number</Text>
           <TextInput
             style={[styles.input, { color: theme.colors.text, backgroundColor: isDark ? theme.colors.backgroundSecondary : theme.colors.white, borderColor: theme.colors.border }]}
-            placeholder="Optional"
+            placeholder=""
             placeholderTextColor={theme.colors.textTertiary}
             value={serialNumber}
             onChangeText={setSerialNumber}
@@ -289,6 +296,10 @@ export default function AddUnitModal() {
       >
         {/* Header */}
         <View style={styles.header}>
+          <Text style={[styles.title, { color: theme.colors.text }]}>Unit Details</Text>
+          {/* <Text style={[styles.description, { color: theme.colors.textSecondary }]}>
+            {selectedModel?.productLine?.oem?.name} {selectedModel?.modelNumber}
+          </Text> */}
           <TouchableOpacity style={styles.closeButton} onPress={() => router.back()}>
             <Ionicons name="close" size={28} color={theme.colors.text} />
           </TouchableOpacity>
@@ -315,7 +326,7 @@ const createStyles = (theme: any) =>
     },
     header: {
       flexDirection: 'row',
-      justifyContent: 'flex-end',
+      justifyContent: 'space-between',
       paddingHorizontal: theme.spacing.lg,
       paddingVertical: theme.spacing.md,
     },
