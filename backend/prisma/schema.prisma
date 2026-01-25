@@ -128,7 +128,7 @@ model ManualSection {
   sectionType   String   @map("section_type")
   content       String   @db.Text
   pageReference String?  @map("page_reference")
-  embedding     Unsupported("vector(3072)")?
+  embedding     Unsupported("vector(1536)")?
   metadata      Json?
   createdAt     DateTime @default(now()) @map("created_at")
 

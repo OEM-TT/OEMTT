@@ -6,6 +6,8 @@ import authRoutes from './auth.routes';
 import oemsRoutes from './oems.routes';
 import modelsRoutes from './models.routes';
 import manualsRoutes from './manuals.routes';
+import ingestionRoutes from './ingestion.routes';
+import chatRoutes from './chat.routes';
 
 const router = Router();
 
@@ -17,6 +19,8 @@ router.use('/saved-units', savedUnitsRoutes);
 router.use('/oems', oemsRoutes);
 router.use('/models', modelsRoutes);
 router.use('/manuals', manualsRoutes);
+router.use('/ingestion', ingestionRoutes);
+router.use('/chat', chatRoutes);
 
 // API info endpoint
 router.get('/', (req, res) => {
@@ -55,6 +59,15 @@ router.get('/', (req, res) => {
           get: '/api/manuals/:id',
           sections: '/api/manuals/:id/sections',
           searchSections: '/api/manuals/search-sections?q=<query>',
+        },
+        ingestion: {
+          list: '/api/ingestion/manuals',
+          status: '/api/ingestion/status/:manualId',
+          process: '/api/ingestion/process/:manualId',
+        },
+        chat: {
+          ask: '/api/chat/ask (POST, streaming SSE)',
+          history: '/api/chat/history?unitId=xxx&limit=10',
         },
       },
     },

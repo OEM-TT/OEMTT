@@ -5,7 +5,7 @@ export default function ModalsLayout() {
     <Stack
       screenOptions={{
         presentation: 'modal',
-        headerShown: true,
+        headerShown: false,
         headerStyle: {
           backgroundColor: '#0F172A',
         },

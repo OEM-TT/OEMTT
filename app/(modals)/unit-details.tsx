@@ -17,10 +17,12 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
-import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
+import { useLocalSearchParams, useRouter, Stack, useFocusEffect } from 'expo-router';
+import { useCallback } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { savedUnitsService, SavedUnitWithDetails } from '@/services/api/savedUnits.service';
 import { modelsService } from '@/services/api/models.service';
+import * as chatService from '@/services/api/chat.service';
 
 interface Manual {
   id: string;
@@ -33,6 +35,18 @@ interface Manual {
   status: string;
 }
 
+interface ChatHistory {
+  id: string;
+  question: string;
+  answer: string;
+  confidence: number;
+  processingTime: number;
+  timestamp: Date;
+  model: string;
+  manualTitle?: string;
+  modelNumber?: string;
+}
+
 export default function UnitDetailsScreen() {
   const params = useLocalSearchParams<{ id: string }>();
   const unitId = typeof params.id === 'string' ? params.id : '';
@@ -40,6 +54,7 @@ export default function UnitDetailsScreen() {
 
   const [unit, setUnit] = useState<SavedUnitWithDetails | null>(null);
   const [manuals, setManuals] = useState<Manual[]>([]);
+  const [chatHistory, setChatHistory] = useState<ChatHistory[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Simple useEffect - load once on mount
@@ -66,6 +81,16 @@ export default function UnitDetailsScreen() {
         } catch (e) {
           console.error('Manual load error:', e);
         }
+
+        // Load chat history
+        try {
+          const history = await chatService.getQuestionHistory(unitId, 5); // Last 5 chats
+          if (!mounted) return;
+          console.log('✅ Chat history loaded:', history.length);
+          setChatHistory(history);
+        } catch (e) {
+          console.error('Chat history load error:', e);
+        }
       } catch (error) {
         console.error('Unit load error:', error);
         if (mounted) {
@@ -85,6 +110,25 @@ export default function UnitDetailsScreen() {
     };
   }, [unitId]);
 
+  // Refresh chat history when screen comes back into focus
+  useFocusEffect(
+    useCallback(() => {
+      if (!unitId) return;
+
+      async function refreshChatHistory() {
+        try {
+          const history = await chatService.getQuestionHistory(unitId, 5);
+          console.log('🔄 Refreshed chat history:', history.length);
+          setChatHistory(history);
+        } catch (e) {
+          console.error('Chat history refresh error:', e);
+        }
+      }
+
+      refreshChatHistory();
+    }, [unitId])
+  );
+
   const handleAskAI = () => {
     if (!unit) return;
     router.push({
@@ -93,6 +137,19 @@ export default function UnitDetailsScreen() {
         unitId: unit.id,
         unitName: unit.nickname,
         modelNumber: unit.model.modelNumber,
+      },
+    });
+  };
+
+  const handleViewChat = (chat: ChatHistory) => {
+    if (!unit) return;
+    router.push({
+      pathname: '/(modals)/unit-chat',
+      params: {
+        unitId: unit.id,
+        unitName: unit.nickname,
+        modelNumber: unit.model.modelNumber,
+        questionId: chat.id, // Pass question ID to load the conversation
       },
     });
   };
@@ -187,7 +244,7 @@ export default function UnitDetailsScreen() {
         </View>
 
         {/* Unit Details */}
-        <View style={styles.section}>
+        {(!!unit.serialNumber || !!unit.location || !!unit.installDate || !!unit.notes) && (<View style={styles.section}>
           <Text style={styles.sectionTitle}>Unit Details</Text>
 
           {unit.serialNumber && (
@@ -232,6 +289,7 @@ export default function UnitDetailsScreen() {
             </View>
           )}
         </View>
+        )}
 
         {/* Available Manuals */}
         <View style={styles.section}>
@@ -293,6 +351,39 @@ export default function UnitDetailsScreen() {
           )}
         </View>
 
+        {/* Chat History */}
+        {chatHistory.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Previous Chats</Text>
+            {chatHistory.map((chat) => (
+              <TouchableOpacity
+                key={chat.id}
+                style={styles.chatCard}
+                onPress={() => handleViewChat(chat)}
+              >
+                <View style={styles.chatIcon}>
+                  <Ionicons name="chatbubble-ellipses" size={20} color="#A78BFA" />
+                </View>
+                <View style={styles.chatInfo}>
+                  <Text style={styles.chatQuestion} numberOfLines={2}>
+                    {chat.question}
+                  </Text>
+                  <Text style={styles.chatAnswer} numberOfLines={2}>
+                    {chat.answer}
+                  </Text>
+                  <Text style={styles.chatTimestamp}>
+                    {chat.timestamp.toLocaleDateString()} at {chat.timestamp.toLocaleTimeString([], {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color="#6B7280" />
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+
         {/* Delete Button */}
         <TouchableOpacity
           style={styles.deleteButton}
@@ -312,6 +403,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#0F172A',
+    paddingTop: 60,
   },
   scrollView: {
     flex: 1,
@@ -484,6 +576,41 @@ const styles = StyleSheet.create({
     color: '#64748B',
     marginTop: 8,
     textAlign: 'center',
+  },
+  chatCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#1E293B',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 12,
+    gap: 12,
+  },
+  chatIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#312E81',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  chatInfo: {
+    flex: 1,
+  },
+  chatQuestion: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#F1F5F9',
+    marginBottom: 4,
+  },
+  chatAnswer: {
+    fontSize: 13,
+    color: '#94A3B8',
+    marginBottom: 6,
+  },
+  chatTimestamp: {
+    fontSize: 11,
+    color: '#64748B',
   },
   deleteButton: {
     flexDirection: 'row',

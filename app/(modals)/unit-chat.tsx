@@ -3,8 +3,6 @@
  * 
  * AI-powered chat interface for asking questions about a specific unit.
  * Context-aware of the unit's model and available manuals.
- * 
- * TODO: Connect to OpenAI API with manual context (Phase 4)
  */
 
 import React, { useState, useRef, useEffect } from 'react';
@@ -18,9 +16,11 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { useLocalSearchParams, Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import * as chatService from '@/services/api/chat.service';
 
 interface Message {
   id: string;
@@ -30,23 +30,69 @@ interface Message {
 }
 
 export default function UnitChatScreen() {
-  const { unitId, unitName, modelNumber } = useLocalSearchParams<{
+  const { unitId, unitName, modelNumber, questionId } = useLocalSearchParams<{
     unitId: string;
     unitName: string;
     modelNumber: string;
+    questionId?: string;
   }>();
 
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
       role: 'system',
-      content: `I'm your AI assistant for the ${unitName} (${modelNumber}). I can help you with troubleshooting, maintenance, and technical questions about this unit.\n\nNote: AI responses are not yet connected. This is a preview of the chat interface.`,
+      content: `I'm your AI assistant for the ${unitName} (${modelNumber}). Ask me anything about troubleshooting, maintenance, specifications, or service procedures. I have access to the official service manual!`,
       timestamp: new Date(),
     },
   ]);
   const [inputText, setInputText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [streamingContent, setStreamingContent] = useState('');
   const flatListRef = useRef<FlatList>(null);
+
+  // Load previous chat if questionId is provided
+  useEffect(() => {
+    if (questionId) {
+      loadPreviousChat(questionId);
+    }
+  }, [questionId]);
+
+  const loadPreviousChat = async (qId: string) => {
+    setLoadingHistory(true);
+    try {
+      const chat = await chatService.getQuestionById(qId);
+
+      // Add user question message
+      const userMessage: Message = {
+        id: `user-${qId}`,
+        role: 'user',
+        content: chat.question,
+        timestamp: chat.timestamp,
+      };
+
+      // Add AI response message with sources
+      const sourcesText = chat.sources && chat.sources.length > 0
+        ? `\n\n📖 Sources:\n${chat.sources.map((s: any) =>
+          `• ${s.manualTitle || 'Manual'}, ${s.pageReference || 'Unknown page'}`
+        ).join('\n')}`
+        : '';
+
+      const aiMessage: Message = {
+        id: `ai-${qId}`,
+        role: 'assistant',
+        content: chat.answer + sourcesText,
+        timestamp: chat.timestamp,
+      };
+
+      setMessages((prev) => [...prev, userMessage, aiMessage]);
+    } catch (error) {
+      console.error('Failed to load previous chat:', error);
+      Alert.alert('Error', 'Failed to load previous conversation');
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
 
   useEffect(() => {
     // Scroll to bottom when new messages arrive
@@ -58,7 +104,7 @@ export default function UnitChatScreen() {
   }, [messages]);
 
   const handleSend = async () => {
-    if (!inputText.trim()) return;
+    if (!inputText.trim() || isLoading) return;
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -67,22 +113,97 @@ export default function UnitChatScreen() {
       timestamp: new Date(),
     };
 
+    const question = inputText.trim();
     setMessages((prev) => [...prev, userMessage]);
     setInputText('');
     setIsLoading(true);
+    setStreamingContent('');
 
-    // TODO: Replace with actual OpenAI API call
-    // Simulate AI response for now
-    setTimeout(() => {
-      const aiMessage: Message = {
-        id: (Date.now() + 1).toString(),
+    try {
+      // Create placeholder for AI message
+      const aiMessageId = (Date.now() + 1).toString();
+      setMessages((prev) => [...prev, {
+        id: aiMessageId,
         role: 'assistant',
-        content: `[AI Response Coming Soon]\n\nYou asked: "${userMessage.content}"\n\nThis will be answered using the service manual for your ${modelNumber} once we connect the OpenAI API in Phase 4.`,
+        content: '',
         timestamp: new Date(),
-      };
-      setMessages((prev) => [...prev, aiMessage]);
+      }]);
+
+      // Stream the response
+      await chatService.askQuestion(
+        unitId,
+        question,
+        {
+          onContext: (context) => {
+            console.log('📚 Context:', context);
+            // Could show this in UI (e.g., "Searching 3 manuals...")
+          },
+
+          onWarning: (warning) => {
+            console.warn('⚠️ Warning:', warning);
+            // Add warning message to chat
+            const warningMessage: Message = {
+              id: `warning-${Date.now()}`,
+              role: 'system',
+              content: `⚠️ ${warning}`,
+              timestamp: new Date(),
+            };
+            setMessages((prev) => [...prev, warningMessage]);
+          },
+
+          onToken: (token) => {
+            setStreamingContent((prev) => {
+              const newContent = prev + token;
+              // Update the AI message with streamed content
+              setMessages((messages) =>
+                messages.map((msg) =>
+                  msg.id === aiMessageId
+                    ? { ...msg, content: newContent }
+                    : msg
+                )
+              );
+              return newContent;
+            });
+          },
+
+          onComplete: (data) => {
+            console.log('✅ Complete:', data);
+            setIsLoading(false);
+            setStreamingContent('');
+
+            // Show sources in a subtle way
+            if (data.sources.length > 0) {
+              const sourcesText = `\n\n📖 Sources:\n${data.sources.map(s =>
+                `• ${s.title}, ${s.page}`
+              ).join('\n')}`;
+
+              setMessages((messages) =>
+                messages.map((msg) =>
+                  msg.id === aiMessageId
+                    ? { ...msg, content: msg.content + sourcesText }
+                    : msg
+                )
+              );
+            }
+          },
+
+          onError: (error) => {
+            console.error('❌ Chat error:', error);
+            Alert.alert('Error', `Failed to get response: ${error}`);
+            setIsLoading(false);
+            setStreamingContent('');
+
+            // Remove failed AI message
+            setMessages((prev) => prev.filter(msg => msg.id !== aiMessageId));
+          },
+        }
+      );
+    } catch (error) {
+      console.error('❌ Error sending message:', error);
+      Alert.alert('Error', 'Failed to send message. Please try again.');
       setIsLoading(false);
-    }, 1000);
+      setStreamingContent('');
+    }
   };
 
   const renderMessage = ({ item }: { item: Message }) => {
@@ -107,18 +228,27 @@ export default function UnitChatScreen() {
           {!isUser && !isSystem && (
             <View style={styles.aiHeader}>
               <Ionicons name="sparkles" size={16} color="#A78BFA" />
-              <Text style={styles.aiLabel}>AI Assistant</Text>
+              <Text style={styles.aiLabel}>OEM TechTalk AI Assistant</Text>
             </View>
           )}
-          <Text
-            style={[
-              styles.messageText,
-              isUser && styles.userMessageText,
-              isSystem && styles.systemMessageText,
-            ]}
-          >
-            {item.content}
-          </Text>
+          {!isUser && !isSystem && item.content === '' ? (
+            <View style={{ paddingVertical: 12 }}>
+              <ActivityIndicator size="small" color="#A78BFA" />
+              <Text style={[styles.messageText, { color: '#999', fontSize: 12, marginTop: 8 }]}>
+                Searching manuals...
+              </Text>
+            </View>
+          ) : (
+            <Text
+              style={[
+                styles.messageText,
+                isUser && styles.userMessageText,
+                isSystem && styles.systemMessageText,
+              ]}
+            >
+              {item.content}
+            </Text>
+          )}
           <Text
             style={[
               styles.timestamp,
@@ -160,6 +290,14 @@ export default function UnitChatScreen() {
       />
 
       <View style={styles.chatContainer}>
+        {/* Loading History Indicator */}
+        {loadingHistory && (
+          <View style={styles.loadingHistoryOverlay}>
+            <ActivityIndicator size="large" color="#A78BFA" />
+            <Text style={styles.loadingHistoryText}>Loading conversation...</Text>
+          </View>
+        )}
+
         {/* Messages List */}
         <FlatList
           ref={flatListRef}
@@ -244,6 +382,23 @@ const styles = StyleSheet.create({
   },
   chatContainer: {
     flex: 1,
+  },
+  loadingHistoryOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(15, 23, 42, 0.95)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+    gap: 16,
+  },
+  loadingHistoryText: {
+    fontSize: 16,
+    color: '#A78BFA',
+    fontWeight: '600',
   },
   messagesList: {
     padding: 16,
