@@ -10,6 +10,7 @@
 import { prisma } from '@/config/database';
 import { Prisma } from '@prisma/client';
 import { generateEmbedding } from '@/services/ingestion/embeddings';
+import { openai, estimateTokens } from '@/config/openai';
 
 export interface ChatContext {
   unit: {
@@ -43,6 +44,74 @@ export interface ChatContext {
     similarity: number;
     manualTitle: string;
   }>;
+  conversationHistory?: string; // Formatted conversation history for system prompt
+}
+
+/**
+ * Build conversation context string from message history
+ */
+function buildConversationContext(
+  messages: Array<{ role: 'user' | 'assistant'; content: string }>
+): string {
+  if (messages.length === 0) {
+    return '';
+  }
+
+  // Take last 10 messages (already filtered by controller, but double-check)
+  const recentMessages = messages.slice(-10);
+  
+  // Format for GPT
+  const formattedMessages = recentMessages.map(msg => {
+    const roleLabel = msg.role === 'user' ? 'User' : 'Assistant';
+    return `${roleLabel}: ${msg.content}`;
+  });
+
+  return formattedMessages.join('\n\n');
+}
+
+/**
+ * Summarize conversation history if it exceeds token limit
+ * Uses GPT-4o-mini for cost-effective summarization
+ */
+async function summarizeIfNeeded(context: string): Promise<string> {
+  if (!context) {
+    return '';
+  }
+
+  const tokens = estimateTokens(context);
+  
+  // If conversation history is >8K tokens, summarize it
+  if (tokens > 8000) {
+    console.log(`📝 Summarizing long conversation (${tokens} tokens)`);
+    
+    try {
+      const summary = await openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages: [
+          {
+            role: 'system',
+            content: 'Summarize this HVAC troubleshooting conversation in 3-4 concise sentences. Focus on: 1) The main issue being discussed, 2) Key information already provided, 3) Steps already tried or discussed.'
+          },
+          { role: 'user', content: context }
+        ],
+        temperature: 0.3,
+        max_tokens: 200
+      });
+      
+      const summarizedContext = summary.choices[0].message.content || context;
+      const newTokens = estimateTokens(summarizedContext);
+      console.log(`✅ Summarized: ${tokens} → ${newTokens} tokens`);
+      
+      return `[Previous conversation summary: ${summarizedContext}]`;
+    } catch (error) {
+      console.error('Failed to summarize conversation:', error);
+      // Fallback: truncate to last 5 messages
+      const lines = context.split('\n\n');
+      return lines.slice(-10).join('\n\n'); // Keep last ~5 exchanges
+    }
+  }
+  
+  return context;
 }
 
 /**
@@ -62,15 +131,31 @@ function detectTechnicalPatterns(query: string): {
   // ═══════════════════════════════════════════════════════════════
   // DIAGNOSTIC CODES (Universal across all OEMs)
   // ═══════════════════════════════════════════════════════════════
-  // Matches: "flash code 74", "error 123", "fault code E1", "code 45"
-  const codePattern = /\b(?:flash|error|fault|diagnostic|trouble|alarm)?\s*code\s*[:\s]*([a-z]?\d+[a-z]?)\b/gi;
+  // Matches: "flash code 74", "error 123", "fault code E1", "code 45", "code A40", "alarm B12"
+  const codePattern = /\b(?:flash|error|fault|diagnostic|trouble|alarm|the)?\s*code\s*[:\s]*([a-z]+\d+|[a-z]?\d+[a-z]?)\b/gi;
   while ((match = codePattern.exec(query)) !== null) {
     patterns.push(match[0]);
     const code = match[1].toUpperCase(); // Normalize to uppercase for search
-    searchTerms.push(`%${code}%`); // Direct code
+    searchTerms.push(`%${code}%`); // Direct code: "A40"
+    searchTerms.push(`% ${code}%`); // Space before: " A40"
+    searchTerms.push(`%${code} %`); // Space after: "A40 "
+    searchTerms.push(`% ${code} %`); // Spaces both sides: " A40 "
     searchTerms.push(`%code%${code}%`); // "code XX"
     searchTerms.push(`%Code ${code}%`); // "Code XX" (capitalized)
     searchTerms.push(`%${code.toLowerCase()}%`); // lowercase variation
+  }
+
+  // Standalone alphanumeric codes (e.g., "What is A40?", "Tell me about B12", "E1")
+  // Matches single letter + number combinations that are likely model/option codes
+  const standaloneCodePattern = /\b([A-Z]\d+[A-Z]?)\b/g;
+  while ((match = standaloneCodePattern.exec(query.toUpperCase())) !== null) {
+    const code = match[1];
+    patterns.push(`standalone:${code}`);
+    searchTerms.push(`%${code}%`); // Direct: "A40"
+    searchTerms.push(`% ${code}%`); // Space before: " A40"
+    searchTerms.push(`%${code} %`); // Space after: "A40 "
+    searchTerms.push(`% ${code} %`); // Both sides: " A40 "
+    searchTerms.push(`%CODE${code}%`); // "CODE†" prefix
   }
 
   // ═══════════════════════════════════════════════════════════════
@@ -177,6 +262,55 @@ function detectTechnicalPatterns(query: string): {
     searchTerms.push(`%${terminal.toLowerCase()}%`); // Lowercase: "r", "y1"
   }
 
+  // ═══════════════════════════════════════════════════════════════
+  // BROAD OPERATIONAL & MAINTENANCE TERMS (Universal)
+  // ═══════════════════════════════════════════════════════════════
+  // Catches general queries like "reset", "troubleshooting", "startup", etc.
+  const broadTerms = [
+    'reset', 'reboot', 'restart', 'power cycle',
+    'troubleshoot', 'diagnose', 'problem', 'issue',
+    'startup', 'start-up', 'start up', 'initial startup',
+    'shutdown', 'shut down', 'turn off',
+    'maintenance', 'service', 'cleaning', 'filter',
+    'calibration', 'adjustment', 'setting',
+    'installation', 'install', 'mounting',
+    'wiring', 'electrical', 'connection',
+    'safety', 'warning', 'caution',
+    'operation', 'operating', 'how to use',
+    'specifications', 'spec', 'capacity', 'rating',
+    'overview', 'introduction', 'description',
+    // Refrigerant & Service Procedures
+    'refrigerant', 'r-134a', 'r-410a', 'r-22', 'freon',
+    'charging', 'charge', 'recharge',
+    'evacuate', 'evacuation', 'vacuum',
+    'recovery', 'recover',
+    'transfer', 'transferring',
+    'pumpout', 'pump out', 'pump-out',
+    'storage', 'tank', 'storage tank',
+    'leak test', 'leak check', 'leak detection',
+    'pressure test', 'pressure check',
+    // General Maintenance & Procedures
+    'replace', 'replacement', 'change',
+    'repair', 'fix',
+    'inspect', 'inspection', 'check',
+    'remove', 'removal', 'disconnect',
+    'valve', 'valves',
+    'compressor', 'condenser', 'evaporator',
+  ];
+
+  const queryLower = query.toLowerCase();
+  for (const term of broadTerms) {
+    if (queryLower.includes(term)) {
+      patterns.push(`broad:${term}`);
+      // Search for the term in various forms
+      searchTerms.push(`%${term}%`);
+      // Capitalize first letter for proper nouns in manuals
+      searchTerms.push(`%${term.charAt(0).toUpperCase() + term.slice(1)}%`);
+      // All caps for headers
+      searchTerms.push(`%${term.toUpperCase()}%`);
+    }
+  }
+
   return {
     hasPattern: patterns.length > 0,
     patterns,
@@ -258,15 +392,15 @@ async function keywordSearch(
  * 
  * @param query - User's question
  * @param manualIds - Array of manual IDs to search within
- * @param limit - Number of results to return (default: 10, increased from 5)
- * @param minSimilarity - Minimum similarity threshold for vector search (default: 0.70)
+ * @param limit - Number of results to return (default: 20, increased for better coverage)
+ * @param minSimilarity - Minimum similarity threshold for vector search (default: 0.55, lowered for vague queries)
  * @returns Array of relevant manual sections with similarity scores
  */
 export async function searchManualSections(
   query: string,
   manualIds: string[],
-  limit: number = 10, // Increased from 5 for better coverage
-  minSimilarity: number = 0.70 // Lowered slightly to 0.70 for better recall
+  limit: number = 20, // Increased from 10 to give more context for broad queries
+  minSimilarity: number = 0.55 // Lowered from 0.70 to catch more relevant sections for vague/general questions
 ) {
   console.log(`🔍 Hybrid search for: "${query.substring(0, 50)}..."`);
 
@@ -386,10 +520,12 @@ export async function searchManualSections(
 export async function gatherChatContext(
   unitId: string,
   question: string,
-  limit: number = 10
+  limit: number = 10,
+  conversationHistory: Array<{ role: 'user' | 'assistant'; content: string }> = []
 ): Promise<ChatContext> {
   console.log(`\n📚 Gathering context for unit: ${unitId}`);
   console.log(`   Question: "${question}"`);
+  console.log(`   Conversation history: ${conversationHistory.length} messages`);
 
   // 1. Fetch unit with model, product line, and OEM
   const unit = await prisma.savedUnit.findUnique({
@@ -435,7 +571,15 @@ export async function gatherChatContext(
     ? await searchManualSections(question, manualIds, limit)
     : [];
 
-  // 4. Build context object
+  // 4. Process conversation history
+  let conversationContextString = '';
+  if (conversationHistory.length > 0) {
+    const rawContext = buildConversationContext(conversationHistory);
+    conversationContextString = await summarizeIfNeeded(rawContext);
+    console.log(`   Conversation context: ${estimateTokens(conversationContextString)} tokens`);
+  }
+
+  // 5. Build context object
   return {
     unit: {
       id: unit.id,
@@ -459,6 +603,7 @@ export async function gatherChatContext(
       pageCount: m.pageCount || 0,
     })),
     relevantSections,
+    conversationHistory: conversationContextString || undefined,
   };
 }
 
@@ -469,9 +614,16 @@ export async function gatherChatContext(
  * @returns System prompt string
  */
 export function buildSystemPrompt(context: ChatContext): string {
-  const { unit, model, manuals, relevantSections } = context;
+  const { unit, model, manuals, relevantSections, conversationHistory } = context;
 
   const prompt = `You are a technical documentation assistant for ${model.oem} ${model.modelNumber} equipment. Your ONLY role is to extract and present information from the official service manual sections provided below.
+
+🚨 **CRITICAL INSTRUCTION - READ FIRST**:
+1. Scroll down to "## RELEVANT MANUAL SECTIONS" below
+2. Count how many sections are listed (Section 1, Section 2, etc.)
+3. If there are ANY sections (even 1), you HAVE the answer and MUST provide it
+4. NEVER say "I cannot find information" when sections exist - that is WRONG
+5. Extract and present information from those sections - they were specifically retrieved for this question
 
 ## UNIT CONTEXT
 - **Unit Name**: ${unit.nickname}
@@ -483,7 +635,15 @@ ${unit.location ? `- **Location**: ${unit.location}` : ''}
 ${unit.installDate ? `- **Installed**: ${new Date(unit.installDate).toLocaleDateString()}` : ''}
 ${unit.notes ? `- **Notes**: ${unit.notes}` : ''}
 
-## AVAILABLE MANUALS
+${conversationHistory ? `## CONVERSATION HISTORY
+
+The user has been asking follow-up questions. Here's what was discussed previously:
+
+${conversationHistory}
+
+**IMPORTANT**: The current question below may reference previous topics (e.g., "How do I fix it?", "What tools do I need?", "Tell me more about that"). Use this conversation history to understand what "it" or "that" refers to.
+
+` : ''}## AVAILABLE MANUALS
 ${manuals.map(m => `- ${m.title} (${m.type}, ${m.pageCount} pages)`).join('\n')}
 
 ## RELEVANT MANUAL SECTIONS (ONLY SOURCE OF TRUTH)
@@ -521,19 +681,50 @@ ${s.content}
 - Replace "Page Number" with the REAL page number from the section
 - If you cannot find a citation, do NOT provide the information
 
-⚠️ **RULE 3: REFUSE IF NOT IN MANUAL**
-If the information is not in the manual sections above (remember: check case-insensitively!), respond EXACTLY:
+⚠️ **RULE 3: YOU MUST USE THE SECTIONS PROVIDED - NEVER REFUSE IF SECTIONS EXIST**
 
-"I cannot find information about [topic] in the ${model.modelNumber} service manual sections I have access to. This information may be in a different section of the manual that wasn't retrieved. 
+🚨 **CRITICAL - READ THIS FIRST**: Look at the "RELEVANT MANUAL SECTIONS" above. If there are ANY sections listed (1 or more), you HAVE information and MUST answer. Saying "I cannot find information" when sections exist is WRONG.
+
+**MANDATORY BEHAVIOR:**
+
+**If sections exist above (check "### Section 1", "### Section 2", etc.):**
+✅ **YOU MUST ANSWER** - Extract and present the information from those sections
+✅ **Even if relevance is low (50-60%)** - Still use the sections, the search retrieved them for a reason
+✅ **Even if the section title doesn't perfectly match** - Read the CONTENT, the answer is often inside
+
+**Examples of CORRECT behavior:**
+- User asks: "How do I transfer refrigerant from the pumpout storage tank?"
+- Sections provided: 1 section titled "Transfer Refrigerant from Pumpout Storage Tank to Chiller"
+- **CORRECT RESPONSE**: "To transfer refrigerant from the pumpout storage tank to the chiller: [extract and present the procedure from the section]"
+- **WRONG RESPONSE**: "I cannot find specific information..." ❌ (The section IS there!)
+
+**For technical queries (codes, LEDs, specs, procedures):**
+- ANSWER IMMEDIATELY - these sections were specifically retrieved for this query
+- Extract ALL information (especially from tables)
+- Follow table reading rules for complete extraction
+
+**For broad/general questions:**
+- Synthesize information from all provided sections
+- Give helpful overview even if not perfectly specific
+- Use what you have - it's better than refusing
+
+**ONLY refuse if:**
+- ZERO sections are listed above (it will say "No relevant sections found")
+- Sections are 100% unrelated AND you've read the content carefully
+
+**If you absolutely must refuse (extremely rare):**
+"I cannot find specific information about [topic] in the manual sections retrieved. This may require a different search.
 
 Would you like me to:
 1. Search the manual again with different keywords
 2. Provide general troubleshooting steps (not from the manual)
 3. Suggest contacting ${model.oem} technical support"
 
-⚠️ **RULE 4: ACCURACY OVER COMPLETENESS**
-- It is better to say "I don't know" than to provide unverified information
-- If you're unsure, reference the exact manual text verbatim
+⚠️ **RULE 4: ACCURACY WITH PROVIDED INFORMATION**
+- Use the manual sections you received - they were specifically found for this question
+- For specific queries (codes, specs), extract ALL details
+- For broad queries, synthesize and summarize
+- Cite sources for all specific claims
 
 ## READING FLASH CODE TABLES (CRITICAL - FOLLOW EXACTLY)
 

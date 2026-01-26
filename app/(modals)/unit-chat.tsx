@@ -113,8 +113,10 @@ export default function UnitChatScreen() {
       timestamp: new Date(),
     };
 
-    const question = inputText.trim();
-    setMessages((prev) => [...prev, userMessage]);
+    // Build messages array with new user message
+    const updatedMessages = [...messages, userMessage];
+    
+    setMessages(updatedMessages);
     setInputText('');
     setIsLoading(true);
     setStreamingContent('');
@@ -129,10 +131,15 @@ export default function UnitChatScreen() {
         timestamp: new Date(),
       }]);
 
-      // Stream the response
+      // Stream the response - send full conversation history (last 10 messages)
+      // Filter out system messages (welcome message) - only send user/assistant
+      const conversationMessages = updatedMessages
+        .filter(m => m.role !== 'system')
+        .slice(-10); // Last 10 messages
+      
       await chatService.askQuestion(
         unitId,
-        question,
+        conversationMessages,
         {
           onContext: (context) => {
             console.log('📚 Context:', context);

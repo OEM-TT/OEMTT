@@ -53,16 +53,24 @@ export interface StreamCallbacks {
  * Ask a question about a unit with streaming response
  * 
  * @param unitId - Saved unit ID
- * @param question - User's question
+ * @param question - User's question (legacy) OR
+ * @param messages - Conversation history (new format)
  * @param callbacks - Streaming event callbacks
  */
 export async function askQuestion(
   unitId: string,
-  question: string,
+  questionOrMessages: string | ChatMessage[],
   callbacks: StreamCallbacks
 ): Promise<void> {
-  console.log('🤖 Asking question:', question);
+  // Support both legacy (string) and new (messages array) format
+  const isMessagesArray = Array.isArray(questionOrMessages);
+  const payload = isMessagesArray
+    ? { unitId, messages: questionOrMessages.slice(-10).map(m => ({ role: m.role, content: m.content })) }
+    : { unitId, question: questionOrMessages };
+  
+  console.log('🤖 Asking question:', isMessagesArray ? 'with conversation history' : questionOrMessages);
   console.log('🔗 API URL:', `${API_URL}/chat/ask`);
+  console.log('📝 Payload:', JSON.stringify(payload).substring(0, 200));
   
   try {
     // Get auth token
@@ -159,7 +167,7 @@ export async function askQuestion(
         reject(new Error('Network request failed'));
       };
       
-      xhr.send(JSON.stringify({ unitId, question }));
+      xhr.send(JSON.stringify(payload));
     });
     
   } catch (error) {

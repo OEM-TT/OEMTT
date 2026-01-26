@@ -8,6 +8,7 @@ import modelsRoutes from './models.routes';
 import manualsRoutes from './manuals.routes';
 import ingestionRoutes from './ingestion.routes';
 import chatRoutes from './chat.routes';
+import discoveryRoutes from './discovery.routes';
 
 const router = Router();
 
@@ -21,6 +22,7 @@ router.use('/models', modelsRoutes);
 router.use('/manuals', manualsRoutes);
 router.use('/ingestion', ingestionRoutes);
 router.use('/chat', chatRoutes);
+router.use('/discovery', discoveryRoutes);
 
 // API info endpoint
 router.get('/', (req, res) => {
@@ -68,6 +70,11 @@ router.get('/', (req, res) => {
         chat: {
           ask: '/api/chat/ask (POST, streaming SSE)',
           history: '/api/chat/history?unitId=xxx&limit=10',
+        },
+        discovery: {
+          manual: '/api/discovery/manual (POST - auto-discover)',
+          search: '/api/discovery/search?oem=Carrier&model=19XR',
+          status: '/api/discovery/status/:manualId',
         },
       },
     },

@@ -15,20 +15,49 @@ import { AppError } from '@/middleware/errorHandler';
  * Ask a question about a saved unit
  * 
  * POST /api/chat/ask
- * Body: { unitId: string, question: string }
+ * Body: { 
+ *   unitId: string, 
+ *   question?: string,  // Legacy: single question
+ *   messages?: Array<{ role: 'user' | 'assistant', content: string, timestamp?: string }>  // New: conversation history
+ * }
  * 
  * Returns: Streaming SSE response with AI answer
  */
 export async function askQuestion(req: AuthRequest, res: Response) {
-  const { unitId, question } = req.body;
+  const { unitId, question, messages } = req.body;
   const userId = req.user!.id;
 
-  // Validate input
-  if (!unitId || !question) {
-    throw new AppError(400, 'unitId and question are required');
+  // Validate input - support both legacy (question) and new (messages) format
+  if (!unitId) {
+    throw new AppError(400, 'unitId is required');
   }
 
-  if (question.length > 500) {
+  // Extract current question from either format
+  let currentQuestion: string;
+  let conversationHistory: Array<{ role: 'user' | 'assistant'; content: string }> = [];
+
+  if (messages && Array.isArray(messages) && messages.length > 0) {
+    // New format: conversation history
+    // Take last 10 messages
+    conversationHistory = messages.slice(-10);
+    
+    // Current question is the last user message
+    const lastMessage = conversationHistory[conversationHistory.length - 1];
+    if (lastMessage.role !== 'user') {
+      throw new AppError(400, 'Last message must be from user');
+    }
+    currentQuestion = lastMessage.content;
+    
+    // Remove the current question from history (it will be sent separately to GPT)
+    conversationHistory = conversationHistory.slice(0, -1);
+  } else if (question) {
+    // Legacy format: single question
+    currentQuestion = question;
+  } else {
+    throw new AppError(400, 'Either question or messages array is required');
+  }
+
+  if (currentQuestion.length > 500) {
     throw new AppError(400, 'Question is too long (max 500 characters)');
   }
 
@@ -36,15 +65,16 @@ export async function askQuestion(req: AuthRequest, res: Response) {
   console.log(`💬 Chat Request`);
   console.log(`   User: ${req.user!.email}`);
   console.log(`   Unit: ${unitId}`);
-  console.log(`   Question: "${question}"`);
+  console.log(`   Question: "${currentQuestion}"`);
+  console.log(`   Conversation history: ${conversationHistory.length} messages`);
   console.log('='.repeat(60));
 
   const startTime = Date.now();
 
   try {
     // 1. Gather context (unit, model, manuals, relevant sections)
-    // Using 10 sections for better coverage (increased from 5)
-    const context = await gatherChatContext(unitId, question, 10);
+    // Using 20 sections for better coverage, especially for broad/vague queries
+    const context = await gatherChatContext(unitId, currentQuestion, 20, conversationHistory);
 
     // Check if we have sufficient manual coverage
     const hasRelevantSections = context.relevantSections.length > 0;
@@ -52,8 +82,9 @@ export async function askQuestion(req: AuthRequest, res: Response) {
       ? context.relevantSections.reduce((sum, s) => sum + s.similarity, 0) / context.relevantSections.length
       : 0;
 
-    // Warn if similarity is low (< 0.75 average)
-    const lowConfidence = avgSimilarity < 0.75 && avgSimilarity > 0;
+    // Warn if similarity is low (< 0.60 average)
+    // Lowered threshold from 0.75 to accommodate broader queries
+    const lowConfidence = avgSimilarity < 0.60 && avgSimilarity > 0;
 
     if (lowConfidence) {
       console.warn(`⚠️  Low similarity score: ${avgSimilarity.toFixed(2)} - Answer may not be accurate`);
@@ -63,19 +94,19 @@ export async function askQuestion(req: AuthRequest, res: Response) {
     const systemPrompt = buildSystemPrompt(context);
 
     // 3. Estimate tokens and choose model
-    const estimatedInputTokens = estimateTokens(systemPrompt + question);
+    const estimatedInputTokens = estimateTokens(systemPrompt + currentQuestion);
 
     // Use gpt-4o-mini for:
     // - Flash code / error code queries (need accurate table reading)
     // - Complex troubleshooting
     // - Diagnostic questions
     // - Long questions
-    const isFlashCodeQuery = /\b(flash|error|fault|diagnostic)\s*code\s*\d+/i.test(question);
+    const isFlashCodeQuery = /\b(flash|error|fault|diagnostic)\s*code\s*\d+/i.test(currentQuestion);
     const useComplexModel = isFlashCodeQuery ||
-      question.toLowerCase().includes('troubleshoot') ||
-      question.toLowerCase().includes('diagnose') ||
-      question.toLowerCase().includes('why') ||
-      question.includes('?') && question.split(' ').length > 10;
+      currentQuestion.toLowerCase().includes('troubleshoot') ||
+      currentQuestion.toLowerCase().includes('diagnose') ||
+      currentQuestion.toLowerCase().includes('why') ||
+      currentQuestion.includes('?') && currentQuestion.split(' ').length > 10;
 
     const model = useComplexModel ? MODELS.CHAT_COMPLEX : MODELS.CHAT_SIMPLE;
 
@@ -128,7 +159,7 @@ export async function askQuestion(req: AuthRequest, res: Response) {
       model,
       messages: [
         { role: 'system', content: systemPrompt },
-        { role: 'user', content: question },
+        { role: 'user', content: currentQuestion },
       ],
       temperature: 0.0, // Zero creativity - only factual responses from manual
       max_tokens: 2000, // Increased from 1000 to allow complete responses with all causes/actions
@@ -176,7 +207,7 @@ export async function askQuestion(req: AuthRequest, res: Response) {
           userId: dbUser.id, // Use internal database ID, not Supabase Auth ID
           modelId: context.model.id,
           manualId: context.manuals[0]?.id || null,
-          questionText: question,
+          questionText: currentQuestion,
           context: {
             intent: useComplexModel ? 'complex' : 'simple',
             serialNumber: context.unit.serialNumber,

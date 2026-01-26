@@ -143,9 +143,14 @@ export async function createSavedUnit(
       throw new AppError(401, 'User not authenticated', 'UNAUTHORIZED');
     }
 
+    // Debug: Log what we received
+    console.log('📝 CREATE SAVED UNIT REQUEST:');
+    console.log('   Body:', JSON.stringify(req.body, null, 2));
+
     // Validate request body
     const validationResult = createSavedUnitSchema.safeParse(req.body);
     if (!validationResult.success) {
+      console.log('❌ Validation failed:', JSON.stringify(validationResult.error.errors, null, 2));
       throw new AppError(
         400,
         'Invalid request data',

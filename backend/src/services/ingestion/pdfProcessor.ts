@@ -67,9 +67,18 @@ async function downloadPDF(storagePath: string): Promise<Buffer> {
 /**
  * Extract positioned text items from a PDF page
  */
-async function extractPositionedText(page: any): Promise<TextItem[]> {
+async function extractPositionedText(page: any, pageNum?: number): Promise<TextItem[]> {
   const textContent = await page.getTextContent();
   const items: TextItem[] = [];
+
+  // DEBUG: Log raw item count for problematic pages
+  if (pageNum && pageNum >= 33 && pageNum <= 43) {
+    console.log(`   🔍 DEBUG Page ${pageNum}: Raw textContent has ${textContent.items.length} items`);
+    if (textContent.items.length > 0 && textContent.items.length < 10) {
+      // Show actual content if very few items
+      console.log(`   🔍 DEBUG Page ${pageNum}: Items = ${JSON.stringify(textContent.items.map((i: any) => i.str).slice(0, 5))}`);
+    }
+  }
 
   for (const item of textContent.items) {
     if ('str' in item && 'transform' in item) {
@@ -307,7 +316,7 @@ async function extractTextFromPDF(buffer: Buffer): Promise<PDFProcessResult> {
     const page = await pdfDocument.getPage(pageNum);
 
     // Extract positioned text items
-    const textItems = await extractPositionedText(page);
+    const textItems = await extractPositionedText(page, pageNum);
 
     // Group into rows
     const rows = groupIntoRows(textItems);
@@ -315,22 +324,35 @@ async function extractTextFromPDF(buffer: Buffer): Promise<PDFProcessResult> {
     // Detect tables (can be multiple per page)
     const tables: PDFTable[] = detectTables(rows, pageNum);
 
-    // Build page text
+    // Build page text - Extract ALL text AND format tables properly
+    // Strategy: Get all text first (guaranteed complete), then add formatted tables
     let pageText = '';
 
+    // Step 1: Extract ALL text in reading order (top to bottom)
+    const allText: string[] = [];
+    for (const row of rows) {
+      const rowText = row.map(item => item.str).join(' ');
+      if (rowText.trim()) {
+        allText.push(rowText);
+      }
+    }
+
+    // Step 2: Build page content
     if (tables.length > 0) {
-      // Format table as text
-      for (const tbl of tables) {
-        pageText += formatTableAsText(tbl) + '\n\n';
+      // Page has tables: include both raw text AND formatted tables
+      // This ensures we capture everything
+
+      // Add all text first
+      pageText = allText.join('\n') + '\n\n';
+
+      // Then add formatted tables with clear markers
+      pageText += '=== STRUCTURED TABLES ===\n\n';
+      for (const table of tables) {
+        pageText += formatTableAsText(table) + '\n\n';
       }
     } else {
-      // Fallback: concatenate rows
-      for (const row of rows) {
-        const rowText = row.map(item => item.str).join(' ');
-        if (rowText.trim()) {
-          pageText += rowText + '\n';
-        }
-      }
+      // No tables: just concatenate text
+      pageText = allText.join('\n');
     }
 
     pages.push({
@@ -340,7 +362,7 @@ async function extractTextFromPDF(buffer: Buffer): Promise<PDFProcessResult> {
       tables,
     });
 
-    console.log(`   Page ${pageNum}: ${tables.length} tables, ${rows.length} rows`);
+    console.log(`   Page ${pageNum}: ${tables.length} tables, ${rows.length} rows, ${pageText.length} chars`);
   }
 
   return {

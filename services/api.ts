@@ -21,7 +21,14 @@ apiClient.interceptors.request.use(
   async (config: InternalAxiosRequestConfig) => {
     try {
       // Get Supabase session
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data, error: sessionError } = await supabase.auth.getSession();
+      
+      if (sessionError) {
+        console.error('❌ Session error:', sessionError);
+        return config;
+      }
+      
+      const session = data?.session;
       
       if (session?.access_token && config.headers) {
         config.headers.Authorization = `Bearer ${session.access_token}`;
@@ -51,9 +58,16 @@ apiClient.interceptors.response.use(
 
       try {
         // Try to refresh token using Supabase
-        const { data: { session }, error: refreshError } = await supabase.auth.refreshSession();
+        const { data, error: refreshError } = await supabase.auth.refreshSession();
         
-        if (session?.access_token && !refreshError) {
+        if (refreshError) {
+          console.error('❌ Token refresh failed:', refreshError);
+          return Promise.reject(error);
+        }
+        
+        const session = data?.session;
+        
+        if (session?.access_token) {
           console.log('🔄 Token refreshed successfully');
 
           // Retry original request with new token
@@ -62,7 +76,7 @@ apiClient.interceptors.response.use(
           }
           return apiClient(originalRequest);
         } else {
-          console.error('❌ Token refresh failed:', refreshError);
+          console.error('❌ No session after refresh');
           // Supabase will handle clearing the session
         }
       } catch (refreshError) {
