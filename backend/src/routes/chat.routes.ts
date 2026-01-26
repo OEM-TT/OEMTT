@@ -13,10 +13,13 @@ const router = Router();
 // Ask a question about a unit (streaming SSE response)
 router.post('/ask', authenticate, chatController.askQuestion);
 
-// Get question history
+// Get chat session history
 router.get('/history', authenticate, chatController.getQuestionHistory);
 
-// Get a single question by ID
+// Get messages for a specific chat session
+router.get('/session/:sessionId', authenticate, chatController.getChatSession);
+
+// Get a single question by ID (legacy)
 router.get('/question/:questionId', authenticate, chatController.getQuestionById);
 
 export default router;

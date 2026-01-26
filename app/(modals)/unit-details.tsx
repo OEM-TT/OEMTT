@@ -149,7 +149,7 @@ export default function UnitDetailsScreen() {
         unitId: unit.id,
         unitName: unit.nickname,
         modelNumber: unit.model.modelNumber,
-        questionId: chat.id, // Pass question ID to load the conversation
+        sessionId: chat.id, // Pass session ID (not question ID) to load the conversation
       },
     });
   };

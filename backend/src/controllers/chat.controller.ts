@@ -17,6 +17,7 @@ import { AppError } from '@/middleware/errorHandler';
  * POST /api/chat/ask
  * Body: { 
  *   unitId: string, 
+ *   chatSessionId?: string,  // Chat session ID (created if not provided)
  *   question?: string,  // Legacy: single question
  *   messages?: Array<{ role: 'user' | 'assistant', content: string, timestamp?: string }>  // New: conversation history
  * }
@@ -24,7 +25,7 @@ import { AppError } from '@/middleware/errorHandler';
  * Returns: Streaming SSE response with AI answer
  */
 export async function askQuestion(req: AuthRequest, res: Response) {
-  const { unitId, question, messages } = req.body;
+  const { unitId, chatSessionId, question, messages } = req.body;
   const userId = req.user!.id;
 
   // Validate input - support both legacy (question) and new (messages) format
@@ -190,6 +191,7 @@ export async function askQuestion(req: AuthRequest, res: Response) {
 
     // 7. Save question and answer to database (non-blocking)
     let questionRecord = null;
+    let finalSessionId: string | null = chatSessionId || null;
     try {
       // Look up the internal database user ID (not Supabase Auth ID)
       const dbUser = await prisma.user.findUnique({
@@ -202,11 +204,36 @@ export async function askQuestion(req: AuthRequest, res: Response) {
         throw new Error('User not found in database');
       }
 
+      // Create or reuse chat session
+      let sessionId = finalSessionId;
+      if (!sessionId) {
+        // Create new chat session
+        const session = await prisma.chat_sessions.create({
+          data: {
+            user_id: dbUser.id,
+            unit_id: unitId,
+            title: currentQuestion.substring(0, 50), // Use first 50 chars of question as title
+            last_message_at: new Date(),
+          },
+        });
+        sessionId = session.id;
+        finalSessionId = sessionId; // Update outer scope
+        console.log(`📝 Created new chat session: ${sessionId}`);
+      } else {
+        // Update existing session's last_message_at
+        await prisma.chat_sessions.update({
+          where: { id: sessionId },
+          data: { last_message_at: new Date() },
+        });
+        console.log(`📝 Using existing chat session: ${sessionId}`);
+      }
+
       questionRecord = await prisma.question.create({
         data: {
           userId: dbUser.id, // Use internal database ID, not Supabase Auth ID
           modelId: context.model.id,
           manualId: context.manuals[0]?.id || null,
+          chat_session_id: sessionId, // Link to chat session
           questionText: currentQuestion,
           context: {
             intent: useComplexModel ? 'complex' : 'simple',
@@ -240,6 +267,7 @@ export async function askQuestion(req: AuthRequest, res: Response) {
 
     // 8. Send completion event
     sendEvent('complete', {
+      chatSessionId: finalSessionId, // Send session ID to frontend for follow-up questions
       questionId: questionRecord?.id || null,
       stats: {
         inputTokens,
@@ -329,7 +357,7 @@ export async function getQuestionById(req: AuthRequest, res: Response) {
 }
 
 /**
- * Get question history for a user/unit
+ * Get chat session history for a user/unit
  * 
  * GET /api/chat/history
  */
@@ -347,10 +375,152 @@ export async function getQuestionHistory(req: AuthRequest, res: Response) {
     throw new AppError(404, 'User not found in database');
   }
 
+  const where: any = { user_id: dbUser.id };
+
+  if (unitId) {
+    where.unit_id = unitId as string;
+  }
+
+  // Get chat sessions instead of individual questions
+  const sessions = await prisma.chat_sessions.findMany({
+    where,
+    orderBy: { last_message_at: 'desc' },
+    take: parseInt(limit as string),
+    include: {
+      questions: {
+        orderBy: { createdAt: 'asc' },
+        take: 1, // Get first question for preview
+      },
+    },
+  });
+
+  // Need to fetch unit details separately with proper relations
+  const sessionsWithDetails = await Promise.all(sessions.map(async (session: any) => {
+    const unit = await prisma.savedUnit.findUnique({
+      where: { id: session.unit_id },
+      include: {
+        model: {
+          include: {
+            productLine: {
+              include: {
+                oem: true
+              }
+            }
+          }
+        }
+      }
+    });
+    
+    return {
+      id: session.id,
+      title: session.title,
+      unitName: unit?.nickname || 'Unknown Unit',
+      model: unit ? `${unit.model.productLine.oem.name} ${unit.model.modelNumber}` : 'Unknown Model',
+      lastMessageAt: session.last_message_at,
+      createdAt: session.created_at,
+      // Preview: First question and answer
+      preview: session.questions?.[0] ? {
+        question: session.questions[0].questionText,
+        answer: session.questions[0].answerText?.substring(0, 100) + '...',
+      } : null,
+    };
+  }));
+
+  res.json({
+    total: sessions.length,
+    sessions: sessionsWithDetails,
+  });
+}
+
+/**
+ * Get messages for a specific chat session
+ * 
+ * GET /api/chat/session/:sessionId
+ */
+export async function getChatSession(req: AuthRequest, res: Response) {
+  const sessionId = Array.isArray(req.params.sessionId) ? req.params.sessionId[0] : req.params.sessionId;
+  const supabaseUserId = req.user!.id;
+
+  // Look up the internal database user ID
+  const dbUser = await prisma.user.findUnique({
+    where: { supabaseUserId },
+    select: { id: true },
+  });
+
+  if (!dbUser) {
+    throw new AppError(404, 'User not found in database');
+  }
+
+  const session = await prisma.chat_sessions.findFirst({
+    where: {
+      id: sessionId,
+      user_id: dbUser.id, // Ensure user owns this session
+    },
+    include: {
+      questions: {
+        orderBy: { createdAt: 'asc' },
+      },
+    },
+  });
+
+  if (!session) {
+    throw new AppError(404, 'Chat session not found');
+  }
+
+  // Fetch unit details separately
+  const unit = await prisma.savedUnit.findUnique({
+    where: { id: session.unit_id },
+    include: {
+      model: {
+        include: {
+          productLine: {
+            include: {
+              oem: true
+            }
+          }
+        }
+      }
+    }
+  });
+
+  res.json({
+    id: session.id,
+    title: session.title,
+    unitName: unit?.nickname || 'Unknown Unit',
+    model: unit ? `${unit.model.productLine.oem.name} ${unit.model.modelNumber}` : 'Unknown Model',
+    lastMessageAt: session.last_message_at,
+    createdAt: session.created_at,
+    messages: (session.questions || []).map((q: any) => ({
+      id: q.id,
+      question: q.questionText,
+      answer: q.answerText,
+      confidence: q.confidenceScore,
+      processingTime: q.processingTimeMs,
+      sources: q.answerSources,
+      timestamp: q.createdAt,
+    })),
+  });
+}
+
+/**
+ * Legacy: Get question history (deprecated - use getQuestionHistory instead)
+ */
+async function getLegacyQuestionHistory(req: AuthRequest, res: Response) {
+  const { unitId, limit = 10 } = req.query;
+  const supabaseUserId = req.user!.id;
+
+  const dbUser = await prisma.user.findUnique({
+    where: { supabaseUserId },
+    select: { id: true },
+  });
+
+  if (!dbUser) {
+    throw new AppError(404, 'User not found in database');
+  }
+
   const where: any = { userId: dbUser.id };
 
   if (unitId) {
-    // Get model ID from unit ID
     const unit = await prisma.savedUnit.findUnique({
       where: { id: unitId as string },
       select: { modelId: true },

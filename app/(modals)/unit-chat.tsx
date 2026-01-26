@@ -30,11 +30,11 @@ interface Message {
 }
 
 export default function UnitChatScreen() {
-  const { unitId, unitName, modelNumber, questionId } = useLocalSearchParams<{
+  const { unitId, unitName, modelNumber, sessionId } = useLocalSearchParams<{
     unitId: string;
     unitName: string;
     modelNumber: string;
-    questionId?: string;
+    sessionId?: string;  // Changed from questionId to sessionId
   }>();
 
   const [messages, setMessages] = useState<Message[]>([
@@ -49,43 +49,50 @@ export default function UnitChatScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [streamingContent, setStreamingContent] = useState('');
+  const [chatSessionId, setChatSessionId] = useState<string | undefined>(undefined);  // NEW: Track chat session
   const flatListRef = useRef<FlatList>(null);
 
-  // Load previous chat if questionId is provided
+  // Load previous chat session if sessionId is provided
   useEffect(() => {
-    if (questionId) {
-      loadPreviousChat(questionId);
+    if (sessionId) {
+      loadPreviousChat(sessionId);
+      setChatSessionId(sessionId);  // Set the session ID so follow-up questions continue the conversation
     }
-  }, [questionId]);
+  }, [sessionId]);
 
-  const loadPreviousChat = async (qId: string) => {
+  const loadPreviousChat = async (sId: string) => {
     setLoadingHistory(true);
     try {
-      const chat = await chatService.getQuestionById(qId);
+      const session = await chatService.getChatSession(sId);
 
-      // Add user question message
-      const userMessage: Message = {
-        id: `user-${qId}`,
-        role: 'user',
-        content: chat.question,
-        timestamp: chat.timestamp,
-      };
+      // Convert all questions in the session to messages
+      const conversationMessages: Message[] = [];
+      
+      for (const msg of session.messages) {
+        // User question
+        conversationMessages.push({
+          id: `user-${msg.id}`,
+          role: 'user',
+          content: msg.question,
+          timestamp: new Date(msg.timestamp),
+        });
 
-      // Add AI response message with sources
-      const sourcesText = chat.sources && chat.sources.length > 0
-        ? `\n\n📖 Sources:\n${chat.sources.map((s: any) =>
-          `• ${s.manualTitle || 'Manual'}, ${s.pageReference || 'Unknown page'}`
-        ).join('\n')}`
-        : '';
+        // AI response with sources
+        const sourcesText = msg.sources && msg.sources.length > 0
+          ? `\n\n📖 Sources:\n${msg.sources.map((s: any) =>
+            `• ${s.sectionTitle || 'Manual'}, ${s.pageReference || 'Unknown page'}`
+          ).join('\n')}`
+          : '';
 
-      const aiMessage: Message = {
-        id: `ai-${qId}`,
-        role: 'assistant',
-        content: chat.answer + sourcesText,
-        timestamp: chat.timestamp,
-      };
+        conversationMessages.push({
+          id: `ai-${msg.id}`,
+          role: 'assistant',
+          content: msg.answer + sourcesText,
+          timestamp: new Date(msg.timestamp),
+        });
+      }
 
-      setMessages((prev) => [...prev, userMessage, aiMessage]);
+      setMessages((prev) => [...prev, ...conversationMessages]);
     } catch (error) {
       console.error('Failed to load previous chat:', error);
       Alert.alert('Error', 'Failed to load previous conversation');
@@ -175,6 +182,13 @@ export default function UnitChatScreen() {
 
           onComplete: (data) => {
             console.log('✅ Complete:', data);
+            
+            // Store chat session ID for future messages in this conversation
+            if (data.chatSessionId) {
+              console.log('💾 Storing chat session ID:', data.chatSessionId);
+              setChatSessionId(data.chatSessionId);
+            }
+            
             setIsLoading(false);
             setStreamingContent('');
 
@@ -203,7 +217,8 @@ export default function UnitChatScreen() {
             // Remove failed AI message
             setMessages((prev) => prev.filter(msg => msg.id !== aiMessageId));
           },
-        }
+        },
+        chatSessionId  // Pass existing session ID (undefined for first message)
       );
     } catch (error) {
       console.error('❌ Error sending message:', error);
