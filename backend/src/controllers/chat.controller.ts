@@ -162,7 +162,7 @@ export async function askQuestion(req: AuthRequest, res: Response) {
         { role: 'system', content: systemPrompt },
         { role: 'user', content: currentQuestion },
       ],
-      temperature: 0.0, // Zero creativity - only factual responses from manual
+      temperature: 0.6, // Balanced: follows manual but allows reasoning & general knowledge
       max_tokens: 2000, // Increased from 1000 to allow complete responses with all causes/actions
       stream: true,
     });

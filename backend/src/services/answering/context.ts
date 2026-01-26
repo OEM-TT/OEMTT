@@ -45,6 +45,9 @@ export interface ChatContext {
     manualTitle: string;
   }>;
   conversationHistory?: string; // Formatted conversation history for system prompt
+  // NEW: Confidence scoring for three-tier knowledge strategy
+  confidence: number; // 0.0 - 1.0
+  sourceType: 'manual' | 'general_knowledge' | 'needs_web_search';
 }
 
 /**
@@ -510,6 +513,65 @@ export async function searchManualSections(
 }
 
 /**
+ * Determine confidence and source type for three-tier knowledge strategy
+ */
+function determineConfidenceAndSource(
+  sections: Array<{ similarity: number }>,
+  question: string
+): { confidence: number; sourceType: 'manual' | 'general_knowledge' | 'needs_web_search' } {
+  // TIER 1: Manual content (high confidence)
+  if (sections.length > 0 && sections[0].similarity > 0.65) {
+    return {
+      confidence: sections[0].similarity,
+      sourceType: 'manual'
+    };
+  }
+
+  // TIER 2: General HVAC/electrical knowledge patterns
+  const generalPatterns = [
+    // Electrical questions
+    /how (do|to|can) (i|you) (check|test|measure) (voltage|amperage|resistance|continuity)/i,
+    /what (is|does) (a|an) (multimeter|voltmeter|ohmmeter|ammeter)/i,
+    /how (do|to|can) (i|you) use (a|an|the)? (multimeter|voltmeter)/i,
+    
+    // HVAC theory questions
+    /how (does|do) (refrigerant|hvac|ac|heat pump|compressor|condenser|evaporator) work/i,
+    /what (is|does) (refrigerant|r-410a|r-22|freon|superheat|subcooling)/i,
+    /explain (the )?(refrigeration cycle|hvac|heat pump)/i,
+    
+    // General procedures
+    /how (do|to|can) (i|you) (check|test|measure|troubleshoot|diagnose)/i,
+    /what tools (do|should) i need/i,
+    /safety (precautions|warnings|guidelines)/i,
+  ];
+
+  const isGeneralQuestion = generalPatterns.some(p => p.test(question));
+
+  if (isGeneralQuestion) {
+    // Still have some manual sections (medium confidence)
+    if (sections.length > 0 && sections[0].similarity > 0.50) {
+      return {
+        confidence: 0.60,
+        sourceType: 'manual' // Use manual even if not perfect match
+      };
+    }
+    
+    // No good manual sections, use general knowledge
+    return {
+      confidence: 0.55,
+      sourceType: 'general_knowledge'
+    };
+  }
+
+  // TIER 3: Needs web search (low confidence)
+  // Model-specific question but no manual sections and not general knowledge
+  return {
+    confidence: 0.30,
+    sourceType: 'needs_web_search'
+  };
+}
+
+/**
  * Gather full context for a chat question
  * 
  * @param unitId - Saved unit ID
@@ -604,6 +666,8 @@ export async function gatherChatContext(
     })),
     relevantSections,
     conversationHistory: conversationContextString || undefined,
+    // NEW: Add confidence scoring for three-tier knowledge strategy
+    ...determineConfidenceAndSource(relevantSections, question),
   };
 }
 
@@ -668,18 +732,42 @@ ${s.content}
 - Always match terms regardless of capitalization
 - Do NOT say "I cannot find 'ld1'" if "LD1" exists in the manual
 
-⚠️ **RULE 1: MANUAL-ONLY RESPONSES**
-- Answer ONLY using information from the manual sections above
-- Do NOT use general HVAC knowledge
-- Do NOT make assumptions
-- Do NOT infer information that isn't explicitly stated
+⚠️ **RULE 1: THREE-TIER KNOWLEDGE STRATEGY**
 
-⚠️ **RULE 2: CITE EVERY STATEMENT**
-- Every fact MUST include a citation in this format: (Actual Manual Title, Page Number)
-- Example: "${manuals[0]?.title || 'Service Manual'}, Page 22"
-- Replace "Actual Manual Title" with the REAL manual title from the section source
-- Replace "Page Number" with the REAL page number from the section
-- If you cannot find a citation, do NOT provide the information
+**TIER 1 - Manual Content (HIGHEST PRIORITY):**
+- For model-specific questions (flash codes, specs, procedures): Use ONLY manual sections
+- Always cite source: (Manual Title, Page X)
+- Never use general knowledge for model-specific technical data
+
+**TIER 2 - General HVAC/Electrical Knowledge (SECONDARY):**
+- For general troubleshooting/process questions: You MAY use your training knowledge
+- Examples: "How does a multimeter work?", "What is refrigerant?", "How to check voltage?"
+- MUST include disclaimer: "📚 Based on general HVAC knowledge (not specific to this manual):"
+- Still prioritize manual if relevant sections exist
+
+**TIER 3 - Cannot Answer (RARE):**
+- Model-specific question NOT in manual AND not answerable with general knowledge
+- Suggest web search or manufacturer support
+
+⚠️ **DECISION TREE - Which Tier to Use:**
+
+**Q: "What is flash code 207 on this unit?"**
+→ TIER 1 (Model-specific): Search manual sections, cite page number
+
+**Q: "How do I use a multimeter to check voltage?"**
+→ TIER 2 (General knowledge): Use your electrical knowledge, add disclaimer
+
+**Q: "How does the compressor work in this unit?"**
+→ TIER 1 if manual has info, otherwise TIER 2 (general HVAC principle) with disclaimer
+
+**Q: "Are there any recalls for this model?"**
+→ TIER 3 (Cannot answer): Suggest web search or manufacturer support
+
+⚠️ **RULE 2: CITE EVERY STATEMENT (Manual Content Only)**
+- For TIER 1 (manual) answers: Every fact MUST include citation: (Manual Title, Page X)
+- For TIER 2 (general knowledge) answers: Add disclaimer instead of citation
+  - Format: "📚 Based on general HVAC knowledge (not specific to this manual):"
+- For TIER 3: Suggest alternatives (web search, support contact)
 
 ⚠️ **RULE 3: YOU MUST USE THE SECTIONS PROVIDED - NEVER REFUSE IF SECTIONS EXIST**
 
