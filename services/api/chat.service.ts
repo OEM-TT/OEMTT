@@ -42,6 +42,7 @@ export interface StreamCallbacks {
   onToken?: (token: string) => void;
   onComplete?: (data: {
     questionId: string;
+    chatSessionId: string;  // NEW: Session ID returned from backend
     stats: ChatStats;
     sources: ChatSource[];
   }) => void;
@@ -53,16 +54,29 @@ export interface StreamCallbacks {
  * Ask a question about a unit with streaming response
  * 
  * @param unitId - Saved unit ID
- * @param question - User's question
+ * @param questionOrMessages - User's question (legacy) OR conversation history (new format)
  * @param callbacks - Streaming event callbacks
+ * @param chatSessionId - Optional chat session ID to continue a conversation
  */
 export async function askQuestion(
   unitId: string,
-  question: string,
-  callbacks: StreamCallbacks
+  questionOrMessages: string | ChatMessage[],
+  callbacks: StreamCallbacks,
+  chatSessionId?: string
 ): Promise<void> {
-  console.log('🤖 Asking question:', question);
+  // Support both legacy (string) and new (messages array) format
+  const isMessagesArray = Array.isArray(questionOrMessages);
+  const payload = isMessagesArray
+    ? { 
+        unitId, 
+        messages: questionOrMessages.slice(-10).map(m => ({ role: m.role, content: m.content })),
+        chatSessionId  // Pass session ID if available
+      }
+    : { unitId, question: questionOrMessages };
+  
+  console.log('🤖 Asking question:', isMessagesArray ? 'with conversation history' : questionOrMessages);
   console.log('🔗 API URL:', `${API_URL}/chat/ask`);
+  console.log('📝 Payload:', JSON.stringify(payload).substring(0, 200));
   
   try {
     // Get auth token
@@ -159,7 +173,7 @@ export async function askQuestion(
         reject(new Error('Network request failed'));
       };
       
-      xhr.send(JSON.stringify({ unitId, question }));
+      xhr.send(JSON.stringify(payload));
     });
     
   } catch (error) {
@@ -173,7 +187,7 @@ export async function askQuestion(
 }
 
 /**
- * Get a single question by ID
+ * Get a single question by ID (DEPRECATED - use getChatSession instead)
  * 
  * @param questionId - Question ID
  */
@@ -215,10 +229,53 @@ export async function getQuestionById(
 }
 
 /**
- * Get question history for a unit
+ * Get a chat session with all messages (NEW)
+ * 
+ * @param sessionId - Chat session ID
+ */
+export async function getChatSession(
+  sessionId: string
+): Promise<{
+  id: string;
+  title: string;
+  unitName: string;
+  model: string;
+  messages: Array<{
+    id: string;
+    question: string;
+    answer: string;
+    confidence: number;
+    processingTime: number;
+    sources: any[];
+    timestamp: string;
+  }>;
+}> {
+  const { data: { session } } = await supabase.auth.getSession();
+  const token = session?.access_token;
+  
+  if (!token) {
+    throw new Error('Not authenticated');
+  }
+  
+  const response = await fetch(`${API_URL}/chat/session/${sessionId}`, {
+    headers: {
+      'Authorization': `Bearer ${token}`,
+    },
+  });
+  
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+  
+  const data = await response.json();
+  return data;
+}
+
+/**
+ * Get chat sessions for a unit (NEW: returns sessions instead of individual questions)
  * 
  * @param unitId - Saved unit ID (optional)
- * @param limit - Number of questions to return
+ * @param limit - Number of sessions to return
  */
 export async function getQuestionHistory(
   unitId?: string,
@@ -255,8 +312,14 @@ export async function getQuestionHistory(
   
   const data = await response.json();
   
-  return data.questions.map((q: any) => ({
-    ...q,
-    timestamp: new Date(q.timestamp),
+  // Backend now returns chat_sessions with preview (first question)
+  return data.sessions.map((session: any) => ({
+    id: session.id,  // Session ID (not question ID)
+    question: session.preview?.question || session.title || 'Untitled conversation',
+    answer: session.preview?.answer || '',
+    confidence: 0,  // Not available in session preview
+    processingTime: 0,  // Not available in session preview
+    timestamp: new Date(session.lastMessageAt || session.createdAt),
+    model: session.model || 'Unknown',
   }));
 }

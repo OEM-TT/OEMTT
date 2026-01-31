@@ -10,14 +10,17 @@ import {
   Platform,
   ActivityIndicator,
   Alert,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
 import { useRouter } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
-import { modelsService, ModelSearchResult } from '@/services/api/models.service';
+import { discoveryService } from '@/services/api/discovery.service';
 import { savedUnitsService } from '@/services/api/savedUnits.service';
+import { oemsService } from '@/services/api/oems.service';
+import { OEM } from '@/types';
 
 type Step = 'search' | 'select-model' | 'details';
 
@@ -28,10 +31,16 @@ export default function AddUnitModal() {
 
   // State
   const [step, setStep] = useState<Step>('search');
-  const [searchQuery, setSearchQuery] = useState('');
+  const [oems, setOems] = useState<OEM[]>([]);
+  const [selectedOem, setSelectedOem] = useState<string>('');
+  const [modelNumber, setModelNumber] = useState('');
   const [loading, setLoading] = useState(false);
-  const [searchResults, setSearchResults] = useState<ModelSearchResult | null>(null);
+  const [loadingMessage, setLoadingMessage] = useState<string>('');
+  const [loadingOems, setLoadingOems] = useState(true);
+  const [searchResults, setSearchResults] = useState<any>(null);
+  const [selectedManual, setSelectedManual] = useState<any>(null);
   const [selectedModel, setSelectedModel] = useState<any>(null);
+  const [discoveryMessage, setDiscoveryMessage] = useState<string | null>(null);
 
   // Unit details
   const [nickname, setNickname] = useState('');
@@ -39,39 +48,161 @@ export default function AddUnitModal() {
   const [location, setLocation] = useState('');
   const [notes, setNotes] = useState('');
 
+  // Load OEMs on mount
+  useEffect(() => {
+    async function loadOems() {
+      try {
+        const data = await oemsService.getAll('HVAC');
+        setOems(data);
+      } catch (error) {
+        console.error('Failed to load OEMs:', error);
+        Alert.alert('Error', 'Failed to load manufacturers. Please try again.');
+      } finally {
+        setLoadingOems(false);
+      }
+    }
+    loadOems();
+  }, []);
+
   useEffect(() => {
     if (selectedModel) {
       const oemName = selectedModel.productLine?.oem?.name || '';
-      const modelNumber = selectedModel.modelNumber || '';
-      setNickname(`${oemName} ${modelNumber}`.trim());
+      const modelNum = selectedModel.modelNumber || '';
+      setNickname(`${oemName} ${modelNum}`.trim());
     }
   }, [selectedModel]);
 
-  // Search for models
+  // Search for models with auto-discovery
   const handleSearch = async () => {
-    if (searchQuery.trim().length === 0) return;
+    // Validate inputs
+    if (!selectedOem) {
+      Alert.alert('Required Field', 'Please select a manufacturer.');
+      return;
+    }
+
+    if (modelNumber.trim().length === 0) {
+      Alert.alert('Required Field', 'Please enter a model number.');
+      return;
+    }
 
     setLoading(true);
-    try {
-      const results = await modelsService.search(searchQuery, 10);
-      setSearchResults(results);
+    setDiscoveryMessage(null);
 
-      if (results.count === 0) {
-        Alert.alert('No Results', 'No models found matching your search. Try a different model number.');
-      } else {
+    // Simulate progressive loading messages to keep user informed
+    const loadingMessages = [
+      'Searching database...',
+      'Manual not found, searching online...',
+      'Downloading manual (this may take 30-60 seconds)...',
+      'Processing PDF and extracting text...',
+      'Analyzing content and creating searchable sections...',
+      'Almost done, generating AI embeddings...',
+    ];
+
+    let messageIndex = 0;
+    setLoadingMessage(loadingMessages[0]);
+
+    // Update message every 8 seconds to show progress
+    const messageInterval = setInterval(() => {
+      messageIndex = Math.min(messageIndex + 1, loadingMessages.length - 1);
+      setLoadingMessage(loadingMessages[messageIndex]);
+    }, 8000);
+
+    try {
+      const selectedOemData = oems.find(o => o.id === selectedOem);
+      const oemName = selectedOemData?.name || '';
+
+      console.log(`Searching: OEM="${oemName}", Model="${modelNumber}"`);
+      const results = await discoveryService.search(modelNumber.trim(), oemName);
+
+      clearInterval(messageInterval);
+
+      console.log('Search results received:', results);
+      console.log('Search results type:', typeof results);
+      console.log('Search results keys:', results ? Object.keys(results) : 'undefined');
+
+      if (!results) {
+        Alert.alert('Error', 'No response from server. Please try again.');
+        return;
+      }
+
+      if (!results.success) {
+        Alert.alert(
+          'Not Found',
+          results.message || 'No manuals found for this model.'
+        );
+        return;
+      }
+
+      // Check if it was a discovery (new manual added)
+      if (results.source === 'discovery' && results.message) {
+        setDiscoveryMessage(results.message);
+        Alert.alert('Success!', results.message);
+      }
+
+      // Handle results - could be manuals[] or manual
+      if (results.manuals && results.manuals.length > 0) {
+        setSearchResults(results);
         setStep('select-model');
+      } else if (results.manual) {
+        // Single manual discovered - auto-select it
+        console.log('📦 Discovery response:', JSON.stringify(results.manual, null, 2));
+
+        // Extract model info from discovery response
+        const manualData: any = results.manual;
+        const modelData = manualData.model;
+
+        setSearchResults({
+          manuals: [{
+            id: manualData.id,
+            title: manualData.title,
+            type: 'service',
+            pageCount: manualData.pageCount,
+            sectionsCount: manualData.sectionsCreated,
+            model: {
+              id: modelData?.id || '',
+              modelNumber: modelData?.modelNumber || modelNumber,
+              productLine: modelData?.productLine || 'Unknown',
+              oem: modelData?.oem || (selectedOem as any)?.name || 'Unknown',
+            }
+          }]
+        });
+        setStep('select-model');
+      } else {
+        Alert.alert('No Results', 'No manuals found for this model.');
       }
     } catch (error: any) {
+      clearInterval(messageInterval);
       console.error('Search error:', error);
-      Alert.alert('Search Error', error?.response?.data?.message || 'Failed to search models. Please try again.');
+      console.error('Error details:', {
+        message: error?.message,
+        response: error?.response?.data,
+        stack: error?.stack,
+      });
+      const errorMsg = error?.response?.data?.error || error?.response?.data?.message || error?.message || 'Failed to search. Please try again.';
+      Alert.alert('Search Error', errorMsg);
     } finally {
       setLoading(false);
+      setLoadingMessage('');
     }
   };
 
-  // Select a model
-  const handleSelectModel = (model: any) => {
-    setSelectedModel(model);
+  // Select a manual/model
+  const handleSelectManual = (manual: any) => {
+    setSelectedManual(manual);
+
+    console.log('📦 Selected manual:', JSON.stringify(manual, null, 2));
+
+    // Extract model info from manual (including the model ID for saving)
+    setSelectedModel({
+      id: manual.model.id, // Important: model ID from database
+      modelNumber: manual.model.modelNumber,
+      productLine: {
+        name: manual.model.productLine,
+        oem: {
+          name: manual.model.oem,
+        },
+      },
+    });
     setStep('details');
   };
 
@@ -111,33 +242,73 @@ export default function AddUnitModal() {
     <>
       <Text style={[styles.title, { color: theme.colors.text }]}>Find Your Unit</Text>
       <Text style={[styles.description, { color: theme.colors.textSecondary }]}>
-        Enter the model number to get started
+        Select manufacturer and enter model number
       </Text>
 
-      <View style={[styles.searchContainer, { backgroundColor: isDark ? theme.colors.backgroundSecondary : theme.colors.white }]}>
-        <Ionicons name="search" size={20} color={theme.colors.textSecondary} />
-        <TextInput
-          style={[styles.searchInput, { color: theme.colors.text }]}
-          placeholder="e.g. ABC-123-4567"
-          placeholderTextColor={theme.colors.textTertiary}
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-          onSubmitEditing={handleSearch}
-          returnKeyType="search"
-          autoCapitalize="characters"
-          autoFocus
-        />
-        {searchQuery.length > 0 && (
-          <TouchableOpacity onPress={() => setSearchQuery('')}>
-            <Ionicons name="close-circle" size={20} color={theme.colors.textSecondary} />
+      {/* Manufacturer Dropdown */}
+      <View style={styles.formGroup}>
+        <Text style={[styles.label, { color: theme.colors.text }]}>
+          Manufacturer <Text style={{ color: theme.colors.danger }}>*</Text>
+        </Text>
+        {loadingOems ? (
+          <View style={[styles.dropdownContainer, { backgroundColor: isDark ? theme.colors.backgroundSecondary : theme.colors.white }]}>
+            <ActivityIndicator size="small" color={theme.colors.primary} />
+            <Text style={[styles.dropdownText, { color: theme.colors.textSecondary }]}>Loading...</Text>
+          </View>
+        ) : (
+          <TouchableOpacity
+            style={[styles.dropdownContainer, { backgroundColor: isDark ? theme.colors.backgroundSecondary : theme.colors.white }]}
+            onPress={() => {
+              const oemButtons: any[] = oems.map(oem => ({
+                text: oem.name,
+                onPress: () => setSelectedOem(oem.id),
+              }));
+              oemButtons.push({ text: 'Cancel', style: 'cancel' });
+              Alert.alert(
+                'Select Manufacturer',
+                'Choose a manufacturer',
+                oemButtons
+              );
+            }}
+          >
+            <Ionicons name="business-outline" size={20} color={theme.colors.textSecondary} />
+            <Text style={[styles.dropdownText, { color: selectedOem ? theme.colors.text : theme.colors.textTertiary }]}>
+              {selectedOem ? oems.find(o => o.id === selectedOem)?.name : 'Select manufacturer...'}
+            </Text>
+            <Ionicons name="chevron-down" size={20} color={theme.colors.textSecondary} />
           </TouchableOpacity>
         )}
+      </View>
+
+      {/* Model Number Input */}
+      <View style={styles.formGroup}>
+        <Text style={[styles.label, { color: theme.colors.text }]}>
+          Model Number <Text style={{ color: theme.colors.danger }}>*</Text>
+        </Text>
+        <View style={[styles.searchContainer, { backgroundColor: isDark ? theme.colors.backgroundSecondary : theme.colors.white }]}>
+          <Ionicons name="search" size={20} color={theme.colors.textSecondary} />
+          <TextInput
+            style={[styles.searchInput, { color: theme.colors.text }]}
+            placeholder="e.g. 19XR, 25VNA8"
+            placeholderTextColor={theme.colors.textTertiary}
+            value={modelNumber}
+            onChangeText={setModelNumber}
+            onSubmitEditing={handleSearch}
+            returnKeyType="search"
+            autoCapitalize="characters"
+          />
+          {modelNumber.length > 0 && (
+            <TouchableOpacity onPress={() => setModelNumber('')}>
+              <Ionicons name="close-circle" size={20} color={theme.colors.textSecondary} />
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
 
       <TouchableOpacity
         style={[styles.primaryButton, { backgroundColor: theme.colors.primary }]}
         onPress={handleSearch}
-        disabled={loading || searchQuery.trim().length === 0}
+        disabled={loading || !selectedOem || modelNumber.trim().length === 0}
       >
         {loading ? (
           <ActivityIndicator color={theme.colors.white} />
@@ -165,48 +336,59 @@ export default function AddUnitModal() {
   );
 
   // Render step 2: Select model
-  const renderSelectModelStep = () => (
-    <>
-      <TouchableOpacity style={styles.backButton} onPress={() => setStep('search')}>
-        <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
-      </TouchableOpacity>
+  const renderSelectModelStep = () => {
+    const manuals = searchResults?.manuals || [];
+    const count = manuals.length;
 
-      <Text style={[styles.title, { color: theme.colors.text }]}>Select Your Model</Text>
-      <Text style={[styles.description, { color: theme.colors.textSecondary }]}>
-        Found {searchResults?.count || 0} {searchResults?.count === 1 ? 'result' : 'results'}
-      </Text>
+    return (
+      <>
+        <TouchableOpacity style={styles.backButton} onPress={() => setStep('search')}>
+          <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
+        </TouchableOpacity>
 
-      <ScrollView style={styles.resultsList} showsVerticalScrollIndicator={false}>
-        {searchResults?.models.map((model) => (
-          <TouchableOpacity
-            key={model.id}
-            style={[styles.modelCard, { backgroundColor: isDark ? theme.colors.backgroundSecondary : theme.colors.white }]}
-            onPress={() => handleSelectModel(model)}
-          >
-            <View style={styles.modelInfo}>
-              <Text style={[styles.modelNumber, { color: theme.colors.text }]}>
-                {model.modelNumber}
-              </Text>
-              <Text style={[styles.modelMeta, { color: theme.colors.textSecondary }]}>
-                {model.productLine.oem.name} • {model.productLine.name}
-              </Text>
-              <View style={styles.modelBadges}>
-                {model._count.manuals > 0 && (
+        <Text style={[styles.title, { color: theme.colors.text }]}>Select Your Model</Text>
+        <Text style={[styles.description, { color: theme.colors.textSecondary }]}>
+          Found {count} {count === 1 ? 'result' : 'results'}
+          {discoveryMessage && (
+            <Text style={{ color: theme.colors.success }}> ✨ {discoveryMessage}</Text>
+          )}
+        </Text>
+
+        <ScrollView style={styles.resultsList} showsVerticalScrollIndicator={false}>
+          {manuals.map((manual: any) => (
+            <TouchableOpacity
+              key={manual.id}
+              style={[styles.modelCard, { backgroundColor: isDark ? theme.colors.backgroundSecondary : theme.colors.white }]}
+              onPress={() => handleSelectManual(manual)}
+            >
+              <View style={styles.modelInfo}>
+                <Text style={[styles.modelNumber, { color: theme.colors.text }]}>
+                  {manual.model.modelNumber}
+                </Text>
+                <Text style={[styles.modelMeta, { color: theme.colors.textSecondary }]}>
+                  {manual.model.oem} • {manual.model.productLine}
+                </Text>
+                <View style={styles.modelBadges}>
                   <View style={[styles.badge, { backgroundColor: theme.colors.success + '15' }]}>
                     <Ionicons name="document-text" size={12} color={theme.colors.success} />
                     <Text style={[styles.badgeText, { color: theme.colors.success }]}>
-                      {model._count.manuals} {model._count.manuals === 1 ? 'manual' : 'manuals'}
+                      {manual.sectionsCount} sections • {manual.pageCount || '?'} pages
                     </Text>
                   </View>
-                )}
+                  <View style={[styles.badge, { backgroundColor: theme.colors.primary + '15' }]}>
+                    <Text style={[styles.badgeText, { color: theme.colors.primary }]}>
+                      {manual.type}
+                    </Text>
+                  </View>
+                </View>
               </View>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color={theme.colors.textTertiary} />
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
-    </>
-  );
+              <Ionicons name="chevron-forward" size={20} color={theme.colors.textTertiary} />
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </>
+    );
+  };
 
   // Render step 3: Unit details
   const renderDetailsStep = () => (
@@ -312,6 +494,25 @@ export default function AddUnitModal() {
           {step === 'details' && renderDetailsStep()}
         </View>
       </KeyboardAvoidingView>
+
+      {/* Loading Overlay with Progress */}
+      <Modal
+        transparent
+        visible={loading && loadingMessage.length > 0}
+        animationType="fade"
+      >
+        <View style={styles.loadingOverlay}>
+          <View style={[styles.loadingCard, { backgroundColor: theme.colors.backgroundSecondary }]}>
+            <ActivityIndicator size="large" color={theme.colors.primary} />
+            <Text style={[styles.loadingTitle, { color: theme.colors.text }]}>
+              {loadingMessage}
+            </Text>
+            <Text style={[styles.loadingSubtitle, { color: theme.colors.textSecondary }]}>
+              This may take up to 60 seconds for new manuals
+            </Text>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -359,10 +560,21 @@ const createStyles = (theme: any) =>
       padding: theme.spacing.md,
       borderRadius: theme.borderRadius.lg,
       ...theme.shadows.sm,
-      marginBottom: theme.spacing.md,
       gap: theme.spacing.sm,
     },
     searchInput: {
+      flex: 1,
+      fontSize: 16,
+    },
+    dropdownContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      padding: theme.spacing.md,
+      borderRadius: theme.borderRadius.lg,
+      ...theme.shadows.sm,
+      gap: theme.spacing.sm,
+    },
+    dropdownText: {
       flex: 1,
       fontSize: 16,
     },
@@ -470,5 +682,36 @@ const createStyles = (theme: any) =>
       borderWidth: 1,
       fontSize: 16,
       minHeight: 100,
+    },
+    loadingOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0, 0, 0, 0.7)',
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: theme.spacing.xl,
+    },
+    loadingCard: {
+      borderRadius: theme.borderRadius.xl,
+      padding: theme.spacing.xl * 1.5,
+      alignItems: 'center',
+      maxWidth: 340,
+      width: '100%',
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.3,
+      shadowRadius: 8,
+      elevation: 8,
+    },
+    loadingTitle: {
+      fontSize: 18,
+      fontWeight: '600',
+      marginTop: theme.spacing.lg,
+      textAlign: 'center',
+    },
+    loadingSubtitle: {
+      fontSize: 14,
+      marginTop: theme.spacing.sm,
+      textAlign: 'center',
+      lineHeight: 20,
     },
   });

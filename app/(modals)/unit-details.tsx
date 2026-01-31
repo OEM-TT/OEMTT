@@ -149,7 +149,7 @@ export default function UnitDetailsScreen() {
         unitId: unit.id,
         unitName: unit.nickname,
         modelNumber: unit.model.modelNumber,
-        questionId: chat.id, // Pass question ID to load the conversation
+        sessionId: chat.id, // Pass session ID (not question ID) to load the conversation
       },
     });
   };
@@ -238,7 +238,7 @@ export default function UnitDetailsScreen() {
             style={[styles.actionButton, styles.primaryAction]}
             onPress={handleAskAI}
           >
-            <Ionicons name="chatbubbles" size={24} color="#8338ec" />
+            <Ionicons name="chatbubbles" size={24} color="#ffffff" />
             <Text style={styles.actionButtonTextPrimary}>Ask AI About This Unit</Text>
           </TouchableOpacity>
         </View>
