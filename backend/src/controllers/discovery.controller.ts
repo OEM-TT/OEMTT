@@ -198,7 +198,7 @@ async function searchDatabase(oem: string | undefined, modelNumber: string) {
     // Example: "50P3C070540GMYCSDJ" → ["50P3C070540GMYCSDJ", "50P3"]
     const searchVariants = getModelSearchVariants(modelNumber);
     const baseModel = extractBaseModel(modelNumber);
-    
+
     if (baseModel !== modelNumber) {
         console.log(`   📝 Base model: ${baseModel} from ${modelNumber}`);
         console.log(`   🔍 Search variants: ${searchVariants.join(', ')}`);
@@ -209,7 +209,7 @@ async function searchDatabase(oem: string | undefined, modelNumber: string) {
     };
 
     // Build OR conditions for all model variants
-    const modelConditions = searchVariants.map(variant => ({
+    const modelConditions: any[] = searchVariants.map(variant => ({
         modelNumber: {
             equals: variant,
             mode: 'insensitive',
@@ -217,10 +217,11 @@ async function searchDatabase(oem: string | undefined, modelNumber: string) {
     }));
 
     // Also try partial match on base model (e.g., "50P3" should match "50P3A", "50P3B")
+    // Using 'contains' instead of 'startsWith' for case-insensitive support
     if (baseModel && baseModel.length >= 3) {
         modelConditions.push({
             modelNumber: {
-                startsWith: baseModel,
+                contains: baseModel,
                 mode: 'insensitive',
             },
         });
