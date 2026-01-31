@@ -4,16 +4,35 @@
  */
 
 import axios from 'axios';
+import { extractBaseModel } from '@/utils/modelNumber';
 
 const PERPLEXITY_API_KEY = process.env.PERPLEXITY_API_KEY;
 const PERPLEXITY_API_URL = 'https://api.perplexity.ai/chat/completions';
 
+export type ManualType =
+  | 'controls'
+  | 'startup'
+  | 'operation'
+  | 'troubleshooting'
+  | 'installation'
+  | 'maintenance'
+  | 'service'
+  | 'parts'
+  | 'specifications'
+  | 'wiring'
+  | 'other';
+
+interface ManualResult {
+  pdfUrl: string;
+  title: string;
+  source: string;
+  type: ManualType;
+  priority: number; // 1 = highest, 3 = lowest
+}
+
 interface PerplexitySearchResult {
   found: boolean;
-  pdfUrl?: string;
-  title?: string;
-  source?: string;
-  pageCount?: number;
+  manuals: ManualResult[];
 }
 
 interface PDFVerification {
@@ -24,48 +43,97 @@ interface PDFVerification {
 }
 
 /**
- * Search for a manual PDF using Perplexity
+ * Search for ALL available manuals using Perplexity
+ * Finds multiple manual types with prioritization
  * Restricted to official documentation sources only
  */
-export async function findManualPDF(
+export async function findAllManuals(
   oem: string,
   modelNumber: string
 ): Promise<PerplexitySearchResult> {
-  console.log(`🔍 Perplexity: Searching for ${oem} ${modelNumber} manual...`);
+  // Extract base model number for cleaner search
+  const baseModel = extractBaseModel(modelNumber);
+  const searchModel = baseModel || modelNumber;
 
-  const prompt = `Find the direct PDF download link for the official ${oem} ${modelNumber} service manual or installation manual.
+  console.log(`🔍 Perplexity: Searching for ${oem} ${searchModel} manuals...`);
+  if (baseModel !== modelNumber) {
+    console.log(`   📝 Extracted base model: ${searchModel} from ${modelNumber}`);
+  }
+
+  const prompt = `Find ALL available direct PDF download links for the official ${oem} ${searchModel} manuals.
 
 ⚠️ CRITICAL REQUIREMENTS - ALL MUST BE MET:
-1. The link MUST be a DIRECT PDF file that can be downloaded programmatically
-   - Example of GOOD link: https://www.shareddocs.com/hvac/docs/1009000/Public/04/04-5810-0141-02.pdf
-   - Example of BAD link: https://manualslib.com/manual/... (requires clicks/captcha)
+
+🎯 MODEL MATCH GUIDANCE:
+- Find manuals for "${searchModel}" model or closely related variants
+- Cast a WIDE net - include manuals for the same model series/family
+- Examples of GOOD matches for "30HXC": "30HX", "30HXC", "30H", "30-series"
+- Look for BOTH new AND old manual versions/revisions
+- Filenames may vary (e.g., "48_50P-9T.pdf" might be for "50P3")
+- When in doubt, INCLUDE IT - we will validate the actual PDF content automatically
+- Only skip obviously different model series (e.g., don't get "19XR" when searching for "30HXC")
+
+1. Links MUST be DIRECT PDF files (downloadable via HTTP GET)
+   - ✅ GOOD: https://www.shareddocs.com/hvac/docs/1009000/Public/04/04-5810-0141-02.pdf
+   - ❌ BAD: https://manualslib.com/manual/... (requires clicks/captcha)
 
 2. NO barriers allowed:
-   - ❌ NO captchas
-   - ❌ NO login/registration required
+   - ❌ NO captchas, logins, or registration
    - ❌ NO "click to download" pages
-   - ❌ NO JavaScript-required sites
-   - ✅ MUST be accessible via direct HTTP GET request
+   - ✅ MUST work with: curl [URL] > file.pdf
 
-3. ONLY search these trusted domains (like shareddocs.com):
-   - shareddocs.com (PREFERRED - always direct PDFs)
+3. ONLY these trusted domains:
+   - shareddocs.com (PREFERRED - direct PDFs)
    - carrier.com/commercial/literature
    - lennox.com/support
    - trane.com/commercial/literature
    - york.com/support
    
-4. The URL MUST end in .pdf
-5. It MUST be an official OEM source
-6. Prioritize service/troubleshooting manuals over installation manuals
+4. Find AT LEAST 3-5 DIFFERENT manual types for "${searchModel}":
+   
+   🎯 PRIORITY 1 - MUST FIND (controls/troubleshooting):
+   - Controls manual (CCN, ComfortLink, etc.)
+   - Startup/commissioning manual
+   - Operation manual
+   - Troubleshooting guide (flash codes, diagnostics)
+   
+   🎯 PRIORITY 2 - VERY IMPORTANT (installation/service):
+   - Installation manual (rigging, piping, wiring)
+   - Service manual (maintenance procedures)
+   - Maintenance manual
+   
+   🎯 PRIORITY 3 - HELPFUL (specs/parts):
+   - Parts catalog
+   - Wiring diagrams
+   - Specifications/submittal sheet
 
-TEST: Can this URL be downloaded with "curl [URL] > file.pdf" without any interaction? If NO, reject it.
+5. IMPORTANT: Search thoroughly and return MULTIPLE manuals (3-5 different types)
+   - Look for BOTH newer AND older manual versions
+   - Include family/series manuals (e.g., "30HX Series")
+   - Each manual should serve a different purpose
+   
+6. Return UP TO 5 UNIQUE manuals (no duplicates)
+7. Each URL MUST end in .pdf
 
-Return ONLY:
-URL: [direct PDF link]
-Title: [manual title]
-Source: [domain]
+Return in this EXACT format (include AT LEAST 2 manuals if available):
+---
+URL: [direct PDF link 1]
+Title: [manual title 1]
+Type: [controls|startup|operation|troubleshooting|installation|maintenance|service|parts|wiring|specifications]
+---
+URL: [direct PDF link 2]
+Title: [manual title 2]
+Type: [type]
+---
+URL: [direct PDF link 3]
+Title: [manual title 3]
+Type: [type]
+---
+(continue for up to 5 manuals)
 
-If no direct-download PDF is found, respond with "NOT FOUND"`;
+CRITICAL: Find MULTIPLE different manuals! Don't just return one - search for controls, installation, service, etc.
+
+If absolutely no direct-download PDFs found for "${searchModel}", respond with "NOT FOUND"`;
 
   try {
     const response = await axios.post(
@@ -75,15 +143,15 @@ If no direct-download PDF is found, respond with "NOT FOUND"`;
         messages: [
           {
             role: 'system',
-            content: 'You are a technical documentation finder. Only return official OEM PDF links from authorized sources.',
+            content: 'You are a technical documentation finder. Your goal is to find MULTIPLE (3-5) official OEM PDF manuals from authorized sources. Search thoroughly for controls, installation, service, troubleshooting, and maintenance manuals. Return each one separately with its type.',
           },
           {
             role: 'user',
             content: prompt,
           },
         ],
-        temperature: 0.0, // Deterministic
-        max_tokens: 500,
+        temperature: 0.2, // Slight randomness to find more varied results
+        max_tokens: 2000, // Increased for multiple manuals (was 1500)
       },
       {
         headers: {
@@ -95,19 +163,216 @@ If no direct-download PDF is found, respond with "NOT FOUND"`;
 
     const answer = response.data.choices[0]?.message?.content || '';
 
+    console.log(`\n📋 Raw Perplexity Response (first 500 chars):\n${answer.substring(0, 500)}...\n`);
+
     // Parse response
     if (answer.includes('NOT FOUND') || !answer.includes('.pdf')) {
-      console.log('❌ Perplexity: No manual found');
-      return { found: false };
+      console.log('❌ Perplexity: No manuals found');
+      return { found: false, manuals: [] };
     }
 
-    // Extract PDF URL (basic regex)
-    const pdfUrlMatch = answer.match(/https?:\/\/[^\s]+\.pdf/i);
-    const pdfUrl = pdfUrlMatch ? pdfUrlMatch[0] : undefined;
+    // Extract multiple manuals from response
+    console.log(`📊 Parsing Perplexity response for manuals...`);
+    const manuals = await parseMultipleManuals(answer, oem, searchModel);
 
-    if (!pdfUrl) {
-      console.log('⚠️  Perplexity: Response did not contain valid PDF URL');
-      return { found: false };
+    if (manuals.length === 0) {
+      console.log('⚠️  Perplexity: No valid manuals found after parsing');
+      return { found: false, manuals: [] };
+    }
+
+    console.log(`✅ Perplexity: Found ${manuals.length} manual(s)`);
+    manuals.forEach((m, i) => {
+      console.log(`   ${i + 1}. [P${m.priority}] ${m.type.toUpperCase()}: ${m.title}`);
+    });
+
+    return {
+      found: true,
+      manuals,
+    };
+  } catch (error: any) {
+    console.error('❌ Perplexity API error:', error.response?.data || error.message);
+    return { found: false, manuals: [] };
+  }
+}
+
+/**
+ * Extract text from the first page of a PDF to verify model number
+ * Uses pdf-parse (simpler than pdfjs-dist for text extraction)
+ */
+async function extractPDFTitlePage(url: string): Promise<string> {
+  try {
+    const pdfParse = require('pdf-parse');
+
+    // Download first 500KB (usually enough for first page)
+    const response = await axios.get(url, {
+      timeout: 15000,
+      responseType: 'arraybuffer',
+      headers: {
+        Range: 'bytes=0-512000', // First 500KB
+      },
+      validateStatus: (status) => status === 200 || status === 206,
+    });
+
+    const pdfBuffer = Buffer.from(response.data);
+
+    // Parse PDF text (pdf-parse is simpler and more reliable)
+    const data = await pdfParse(pdfBuffer, {
+      max: 1, // Only parse first page
+    });
+
+    // Get first 500 characters (title area)
+    const titleText = data.text.substring(0, 500).toUpperCase();
+
+    console.log(`   📄 PDF Title Page: ${titleText.substring(0, 100).replace(/\n/g, ' ')}...`);
+
+    return titleText;
+  } catch (error: any) {
+    console.log(`   ⚠️  Could not extract PDF title page: ${error.message}`);
+    return '';
+  }
+}
+
+/**
+ * Validate model match using PDF content (most accurate)
+ * Falls back to title/URL validation if PDF extraction fails
+ */
+async function validateModelMatch(
+  title: string,
+  url: string,
+  targetModel: string
+): Promise<{ isValid: boolean; reason?: string }> {
+  const target = targetModel.toUpperCase();
+
+  // STEP 1: Try to validate using actual PDF content (most accurate!)
+  console.log(`   🔍 Validating by reading PDF content...`);
+  const pdfContent = await extractPDFTitlePage(url);
+
+  if (pdfContent) {
+    // Check if target model appears in PDF's title page
+    if (pdfContent.includes(target)) {
+      console.log(`   ✅ Model "${targetModel}" confirmed in PDF content`);
+      return { isValid: true };
+    }
+
+    // Check for conflicting models in PDF content
+    const baseModelPattern = /(\d+)([A-Z]+)/;
+    const targetMatch = target.match(baseModelPattern);
+
+    if (targetMatch) {
+      const [, targetDigits, targetLetters] = targetMatch;
+      const foundModels = pdfContent.match(/\b\d+[A-Z]+\d*\b/g) || [];
+
+      for (const foundModel of foundModels) {
+        if (foundModel === target) continue;
+
+        const foundMatch = foundModel.match(baseModelPattern);
+        if (foundMatch) {
+          const [, foundDigits, foundLetters] = foundMatch;
+
+          // Same digits, different letters = wrong model
+          if (foundDigits === targetDigits && foundLetters !== targetLetters) {
+            return {
+              isValid: false,
+              reason: `PDF content shows "${foundModel}", not "${targetModel}"`
+            };
+          }
+        }
+      }
+    }
+
+    // If we got here, PDF doesn't mention target model at all
+    return {
+      isValid: false,
+      reason: `Model "${targetModel}" not found in PDF content`
+    };
+  }
+
+  // STEP 2: Fallback - VERY LENIENT (we trust Perplexity + can't verify PDF)
+  console.log(`   ⚠️  Falling back to lenient validation (can't read PDF)...`);
+  const combined = `${title} ${url}`.toUpperCase();
+
+  // If target model is clearly in title/URL, accept
+  if (combined.includes(target)) {
+    console.log(`   ✅ Model "${targetModel}" found in title/URL`);
+    return { isValid: true };
+  }
+
+  // Check if this looks like a very different model (only reject OBVIOUS mismatches)
+  // Example: Searching for "30HXC", found "19XR" → reject
+  // Example: Searching for "30HXC", found "30HX" → ACCEPT (might be a variant/family doc)
+  const baseModelPattern = /(\d+)([A-Z]+)/;
+  const targetMatch = target.match(baseModelPattern);
+
+  if (targetMatch) {
+    const [, targetDigits] = targetMatch;
+    const foundModels = combined.match(/\b\d+[A-Z]+\d*\b/g) || [];
+
+    for (const foundModel of foundModels) {
+      const foundMatch = foundModel.match(baseModelPattern);
+      if (foundMatch) {
+        const [, foundDigits] = foundMatch;
+
+        // Only reject if COMPLETELY different model series (different digits)
+        // Example: "30HXC" vs "19XR" → different (30 vs 19)
+        // Example: "30HXC" vs "30HX" → same series (30 vs 30)
+        if (foundDigits !== targetDigits) {
+          // Different model series - probably wrong
+          return {
+            isValid: false,
+            reason: `Title/URL shows different model series "${foundModel}" (expected something like "${targetModel}")`
+          };
+        }
+      }
+    }
+  }
+
+  // If we get here: couldn't verify PDF, no obvious conflicts → ACCEPT
+  // Better to over-include and let users report issues than miss valid manuals
+  console.log(`   ✅ No obvious conflicts - accepting (Perplexity found it, trusting the AI)`);
+  return { isValid: true };
+}
+
+/**
+ * Parse multiple manuals from Perplexity response
+ * Validates, deduplicates, and prioritizes
+ */
+async function parseMultipleManuals(
+  response: string,
+  oem: string,
+  modelNumber: string
+): Promise<ManualResult[]> {
+  const manuals: ManualResult[] = [];
+  const seenUrls = new Set<string>();
+
+  // Split by manual sections (---\nURL:)
+  const sections = response.split(/---+/);
+
+  for (const section of sections) {
+    if (!section.trim() || !section.includes('URL:')) continue;
+
+    // Extract URL
+    const urlMatch = section.match(/URL:\s*(https?:\/\/[^\s]+\.pdf)/i);
+    if (!urlMatch) continue;
+
+    const pdfUrl = urlMatch[1].trim();
+
+    // Skip duplicates
+    if (seenUrls.has(pdfUrl)) continue;
+
+    // Extract title early for validation
+    const titleMatch = section.match(/Title:\s*(.+?)(?:\n|$)/i);
+    const title = titleMatch
+      ? titleMatch[1].trim()
+      : `${oem} ${modelNumber} Manual`;
+
+    console.log(`\n   🔎 Checking: ${title}`);
+
+    // 🚨 CRITICAL: Validate model number match (async - reads PDF content!)
+    const validation = await validateModelMatch(title, pdfUrl, modelNumber);
+    if (!validation.isValid) {
+      console.log(`   ❌ REJECTED: ${title}`);
+      console.log(`      Reason: ${validation.reason}`);
+      continue;
     }
 
     // Validate domain
@@ -122,49 +387,141 @@ If no direct-download PDF is found, respond with "NOT FOUND"`;
       'goodman.com',
     ];
 
-    const url = new URL(pdfUrl);
-    const isAllowed = allowedDomains.some(domain => url.hostname.includes(domain));
+    try {
+      const url = new URL(pdfUrl);
+      const isAllowed = allowedDomains.some(domain => url.hostname.includes(domain));
 
-    if (!isAllowed) {
-      console.log(`⚠️  Perplexity: PDF from untrusted domain: ${url.hostname}`);
-      return { found: false };
+      if (!isAllowed) {
+        console.log(`   ⚠️  Skipping untrusted domain: ${url.hostname}`);
+        continue;
+      }
+
+      // Verify PDF is downloadable
+      console.log(`   🔍 Verifying PDF download...`);
+      const verification = await verifyPDF(pdfUrl);
+
+      if (!verification.valid) {
+        console.log(`   ❌ PDF verification failed`);
+        continue;
+      }
+
+      console.log(`   ✅ PDF verified: ${(verification.size! / 1024 / 1024).toFixed(1)} MB`);
+      console.log(`   📄 Title: ${title}`);
+
+      // Extract and detect type
+      const typeMatch = section.match(/Type:\s*(\w+)/i);
+      const detectedType = typeMatch
+        ? typeMatch[1].toLowerCase()
+        : detectManualType(title, pdfUrl);
+
+      const type = normalizeManualType(detectedType);
+      const priority = getManualPriority(type);
+
+      manuals.push({
+        pdfUrl,
+        title,
+        source: url.hostname,
+        type,
+        priority,
+      });
+
+      seenUrls.add(pdfUrl);
+
+      // Stop at 5 unique manuals
+      if (manuals.length >= 5) {
+        console.log('   ℹ️  Reached maximum of 5 manuals');
+        break;
+      }
+
+    } catch (error) {
+      console.log(`   ⚠️  Invalid URL: ${pdfUrl}`);
+      continue;
     }
-
-    // CRITICAL: Verify the PDF is actually downloadable before accepting
-    console.log(`🔍 Verifying PDF is directly downloadable: ${pdfUrl}`);
-    const verification = await verifyPDF(pdfUrl);
-    
-    if (!verification.valid) {
-      console.log('❌ PDF verification failed - not a direct download link');
-      return { found: false };
-    }
-
-    console.log(`✅ Perplexity: Found verified manual at ${pdfUrl}`);
-
-    return {
-      found: true,
-      pdfUrl,
-      title: extractTitle(answer, oem, modelNumber),
-      source: url.hostname,
-    };
-  } catch (error: any) {
-    console.error('❌ Perplexity API error:', error.response?.data || error.message);
-    return { found: false };
   }
+
+  // Sort by priority (1 = highest)
+  manuals.sort((a, b) => a.priority - b.priority);
+
+  return manuals;
 }
 
 /**
- * Extract manual title from Perplexity response
+ * Detect manual type from title or URL
  */
-function extractTitle(response: string, oem: string, modelNumber: string): string {
-  // Try to find title in response
-  const titleMatch = response.match(/title[:\s]+(.+?)(?:\n|$)/i);
-  if (titleMatch) {
-    return titleMatch[1].trim();
+function detectManualType(title: string, url: string): string {
+  const combined = `${title} ${url}`.toLowerCase();
+
+  // Priority 1
+  if (/control|ccn|cvc|comm/i.test(combined)) return 'controls';
+  if (/startup|commission|start.?up/i.test(combined)) return 'startup';
+  if (/operation|operator|operating/i.test(combined)) return 'operation';
+  if (/troubleshoot|diagnostic|fault|alarm/i.test(combined)) return 'troubleshooting';
+
+  // Priority 2
+  if (/install|installation|iom/i.test(combined)) return 'installation';
+  if (/maintenance|service|maintain/i.test(combined)) return 'maintenance';
+
+  // Priority 3
+  if (/parts|catalog|part.?list/i.test(combined)) return 'parts';
+  if (/wiring|electrical|wire/i.test(combined)) return 'wiring';
+  if (/spec|specification|data|submittal/i.test(combined)) return 'specifications';
+
+  return 'other';
+}
+
+/**
+ * Normalize manual type to valid enum value
+ */
+function normalizeManualType(type: string): ManualType {
+  const normalized = type.toLowerCase().trim();
+
+  const validTypes: ManualType[] = [
+    'controls', 'startup', 'operation', 'troubleshooting',
+    'installation', 'maintenance', 'service', 'parts',
+    'specifications', 'wiring', 'other'
+  ];
+
+  if (validTypes.includes(normalized as ManualType)) {
+    return normalized as ManualType;
   }
 
-  // Fallback to generic title
-  return `${oem} ${modelNumber} Service Manual`;
+  return 'other';
+}
+
+/**
+ * Get priority level for manual type
+ * 1 = highest priority, 3 = lowest
+ */
+function getManualPriority(type: ManualType): number {
+  const priority1: ManualType[] = ['controls', 'startup', 'operation', 'troubleshooting'];
+  const priority2: ManualType[] = ['installation', 'maintenance'];
+
+  if (priority1.includes(type)) return 1;
+  if (priority2.includes(type)) return 2;
+  return 3;
+}
+
+/**
+ * Backward-compatible single manual search
+ * Returns the highest priority manual found
+ */
+export async function findManualPDF(
+  oem: string,
+  modelNumber: string
+): Promise<{ found: boolean; pdfUrl?: string; title?: string; source?: string }> {
+  const result = await findAllManuals(oem, modelNumber);
+
+  if (!result.found || result.manuals.length === 0) {
+    return { found: false };
+  }
+
+  const topManual = result.manuals[0]; // Already sorted by priority
+  return {
+    found: true,
+    pdfUrl: topManual.pdfUrl,
+    title: topManual.title,
+    source: topManual.source,
+  };
 }
 
 /**
@@ -196,7 +553,7 @@ export async function verifyPDF(url: string): Promise<PDFVerification> {
     }
 
     const sizeInMB = parseInt(contentLength) / (1024 * 1024);
-    
+
     // Check 3: Size must be reasonable
     if (sizeInMB > 100) {
       console.log(`   ❌ PDF too large: ${sizeInMB.toFixed(1)} MB`);
@@ -230,7 +587,7 @@ export async function verifyPDF(url: string): Promise<PDFVerification> {
     }
 
     console.log(`   ✅ PDF verified: ${sizeInMB.toFixed(1)} MB, directly downloadable`);
-    
+
     return {
       valid: true,
       size: parseInt(contentLength),
@@ -249,7 +606,7 @@ export async function verifyPDF(url: string): Promise<PDFVerification> {
       console.log('   ❌ Request timed out');
       return { valid: false, error: 'Timeout' };
     }
-    
+
     console.error('   ❌ Verification error:', error.message);
     return { valid: false, error: error.message };
   }

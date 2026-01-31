@@ -7,6 +7,7 @@ import { Request, Response } from 'express';
 import { discoverAndIngestManual } from '@/services/discovery/autoIngest';
 import { AppError } from '@/middleware/errorHandler';
 import { prisma } from '@/config/database';
+import { extractBaseModel, getModelSearchVariants } from '@/utils/modelNumber';
 
 /**
  * Discover and ingest a manual on-demand
@@ -190,20 +191,45 @@ export async function getDiscoveryStatus(req: Request, res: Response) {
 }
 
 /**
- * Helper: Multi-tier database search
+ * Helper: Multi-tier database search with smart model extraction
  */
 async function searchDatabase(oem: string | undefined, modelNumber: string) {
+    // Extract base model and get all search variants
+    // Example: "50P3C070540GMYCSDJ" → ["50P3C070540GMYCSDJ", "50P3"]
+    const searchVariants = getModelSearchVariants(modelNumber);
+    const baseModel = extractBaseModel(modelNumber);
+    
+    if (baseModel !== modelNumber) {
+        console.log(`   📝 Base model: ${baseModel} from ${modelNumber}`);
+        console.log(`   🔍 Search variants: ${searchVariants.join(', ')}`);
+    }
+
     const whereClause: any = {
         status: 'active',
     };
 
+    // Build OR conditions for all model variants
+    const modelConditions = searchVariants.map(variant => ({
+        modelNumber: {
+            equals: variant,
+            mode: 'insensitive',
+        },
+    }));
+
+    // Also try partial match on base model (e.g., "50P3" should match "50P3A", "50P3B")
+    if (baseModel && baseModel.length >= 3) {
+        modelConditions.push({
+            modelNumber: {
+                startsWith: baseModel,
+                mode: 'insensitive',
+            },
+        });
+    }
+
     // Tier 1: If OEM provided, search with both OEM + model
     if (oem) {
         whereClause.model = {
-            modelNumber: {
-                contains: modelNumber,
-                mode: 'insensitive',
-            },
+            OR: modelConditions,
             productLine: {
                 oem: {
                     name: {
@@ -216,10 +242,7 @@ async function searchDatabase(oem: string | undefined, modelNumber: string) {
     } else {
         // Tier 2: Model-only search (if OEM not provided)
         whereClause.model = {
-            modelNumber: {
-                contains: modelNumber,
-                mode: 'insensitive',
-            },
+            OR: modelConditions,
         };
     }
 

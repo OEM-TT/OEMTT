@@ -3,7 +3,7 @@
  * Discovers, downloads, and processes manuals on-demand
  */
 
-import { findManualPDF } from './perplexity';
+import { findAllManuals, findManualPDF } from './perplexity';
 import { prisma } from '@/config/database';
 import { supabase } from '@/config/supabase';
 import axios from 'axios';
@@ -11,8 +11,24 @@ import { v4 as uuidv4 } from 'uuid';
 
 interface AutoIngestResult {
   success: boolean;
-  manualId?: string;
+  manualIds?: string[];
   message: string;
+  manuals?: Array<{
+    id: string;
+    title: string;
+    type: string;
+    priority: number;
+    pageCount: number | null;
+    sectionsCreated: number;
+    model: {
+      id: string;
+      modelNumber: string;
+      oem: string;
+      productLine: string;
+    };
+  }>;
+  // Legacy fields for backward compatibility
+  manualId?: string;
   manual?: {
     id: string;
     title: string;
@@ -43,8 +59,9 @@ export async function discoverAndIngestManual(
   console.log(`🤖 AUTO-INGEST: ${oem} ${modelNumber}`);
   console.log('='.repeat(60));
 
-  let storagePath: string | null = null;
-  let manualId: string | null = null;
+  // Track storage paths and manual IDs for cleanup on error
+  const storagePaths: string[] = [];
+  const manualIds: string[] = [];
 
   try {
     // Step 1: Check if manual already exists
@@ -74,12 +91,12 @@ export async function discoverAndIngestManual(
 
     console.log('⚠️  Manual not found in database');
 
-    // Step 2: Search for manual using Perplexity
+    // Step 2: Search for manuals using Perplexity (find up to 5)
     console.log('\n🔍 Step 2: Searching with Perplexity...');
-    const searchResult = await findManualPDF(oem, modelNumber);
+    const searchResult = await findAllManuals(oem, modelNumber);
 
-    if (!searchResult.found || !searchResult.pdfUrl) {
-      console.log('❌ Perplexity could not find a valid manual');
+    if (!searchResult.found || searchResult.manuals.length === 0) {
+      console.log('❌ Perplexity could not find any valid manuals');
       return {
         success: false,
         message: 'Manual not found online',
@@ -87,91 +104,153 @@ export async function discoverAndIngestManual(
       };
     }
 
-    console.log(`✅ Found manual: ${searchResult.title}`);
-    console.log(`   Source: ${searchResult.source}`);
-    console.log(`   URL: ${searchResult.pdfUrl}`);
-
-    // Step 3: Download PDF
-    console.log('\n📥 Step 3: Downloading PDF...');
-    const pdfBuffer = await downloadPDFFromWeb(searchResult.pdfUrl);
-    console.log(`✅ Downloaded: ${(pdfBuffer.length / 1024 / 1024).toFixed(2)} MB`);
-
-    // Step 4: Upload to Supabase storage
-    console.log('\n☁️  Step 4: Uploading to Supabase...');
-    storagePath = await uploadToSupabase(pdfBuffer, oem, modelNumber);
-    console.log(`✅ Uploaded to: ${storagePath}`);
-
-    // Step 5: Create database records
-    console.log('\n💾 Step 5: Creating database records...');
-    manualId = await createManualRecord({
-      oem,
-      modelNumber,
-      title: searchResult.title!,
-      sourceUrl: searchResult.pdfUrl,
-      storagePath,
-      pageCount: null, // Will be determined during processing
+    console.log(`✅ Found ${searchResult.manuals.length} manual(s):`);
+    searchResult.manuals.forEach((m, i) => {
+      console.log(`   ${i + 1}. [P${m.priority}] ${m.type.toUpperCase()}: ${m.title}`);
     });
-    console.log(`✅ Manual record created: ${manualId}`);
 
-    // Step 6: Process PDF (extract, chunk, embed)
-    console.log('\n⚙️  Step 6: Processing PDF...');
-    const processingResult = await processPDF(manualId, storagePath);
-    console.log(`✅ Processing complete:`);
-    console.log(`   Pages: ${processingResult.pageCount}`);
-    console.log(`   Sections: ${processingResult.sectionsCreated}`);
+    // Step 3-7: Process each manual
+    const ingestedManuals: Array<{
+      id: string;
+      title: string;
+      type: string;
+      priority: number;
+      pageCount: number | null;
+      sectionsCreated: number;
+      model: {
+        id: string;
+        modelNumber: string;
+        oem: string;
+        productLine: string;
+      };
+    }> = [];
 
-    // Step 7: Update manual status and fetch complete record
-    const updatedManual = await prisma.manual.update({
-      where: { id: manualId },
-      data: {
-        status: 'active',
-        pageCount: processingResult.pageCount,
-      },
-      include: {
-        model: {
+    for (let i = 0; i < searchResult.manuals.length; i++) {
+      const manualInfo = searchResult.manuals[i];
+      console.log(`\n${'─'.repeat(60)}`);
+      console.log(`📖 Processing manual ${i + 1}/${searchResult.manuals.length}: ${manualInfo.type.toUpperCase()}`);
+      console.log('─'.repeat(60));
+
+      let currentStoragePath: string | null = null;
+      let currentManualId: string | null = null;
+
+      try {
+        // Step 3: Download PDF
+        console.log(`\n📥 Step 3.${i + 1}: Downloading PDF...`);
+        const pdfBuffer = await downloadPDFFromWeb(manualInfo.pdfUrl);
+        console.log(`✅ Downloaded: ${(pdfBuffer.length / 1024 / 1024).toFixed(2)} MB`);
+
+        // Step 4: Upload to Supabase storage
+        console.log(`\n☁️  Step 4.${i + 1}: Uploading to Supabase...`);
+        currentStoragePath = await uploadToSupabase(pdfBuffer, oem, modelNumber, manualInfo.type);
+        storagePaths.push(currentStoragePath);
+        console.log(`✅ Uploaded to: ${currentStoragePath}`);
+
+        // Step 5: Create database records
+        console.log(`\n💾 Step 5.${i + 1}: Creating database records...`);
+        currentManualId = await createManualRecord({
+          oem,
+          modelNumber,
+          title: manualInfo.title,
+          manualType: manualInfo.type,
+          sourceUrl: manualInfo.pdfUrl,
+          storagePath: currentStoragePath,
+          pageCount: null, // Will be determined during processing
+        });
+        manualIds.push(currentManualId);
+        console.log(`✅ Manual record created: ${currentManualId}`);
+
+        // Step 6: Process PDF (extract, chunk, embed)
+        console.log(`\n⚙️  Step 6.${i + 1}: Processing PDF...`);
+        const processingResult = await processPDF(currentManualId, currentStoragePath);
+        console.log(`✅ Processing complete:`);
+        console.log(`   Pages: ${processingResult.pageCount}`);
+        console.log(`   Sections: ${processingResult.sectionsCreated}`);
+
+        // Step 7: Update manual status and fetch complete record
+        const updatedManual = await prisma.manual.update({
+          where: { id: currentManualId },
+          data: {
+            status: 'active',
+            pageCount: processingResult.pageCount,
+          },
           include: {
-            productLine: {
+            model: {
               include: {
-                oem: true,
+                productLine: {
+                  include: {
+                    oem: true,
+                  },
+                },
               },
             },
           },
-        },
-      },
-    });
+        });
 
-    console.log('\n🎉 AUTO-INGEST COMPLETE!');
+        ingestedManuals.push({
+          id: currentManualId,
+          title: manualInfo.title,
+          type: manualInfo.type,
+          priority: manualInfo.priority,
+          pageCount: processingResult.pageCount,
+          sectionsCreated: processingResult.sectionsCreated,
+          model: {
+            id: updatedManual.model.id,
+            modelNumber: updatedManual.model.modelNumber,
+            oem: updatedManual.model.productLine.oem.name,
+            productLine: updatedManual.model.productLine.name,
+          },
+        });
+
+        console.log(`✅ Manual ${i + 1} complete!`);
+      } catch (error: any) {
+        console.error(`❌ Failed to process manual ${i + 1}:`, error.message);
+
+        // Cleanup current manual's orphaned file
+        if (currentStoragePath && !currentManualId) {
+          try {
+            await supabase.storage.from('manuals').remove([currentStoragePath]);
+            console.log(`🧹 Cleaned up orphaned file: ${currentStoragePath}`);
+          } catch (cleanupError) {
+            console.error('Failed to cleanup orphaned file:', cleanupError);
+          }
+        }
+
+        // Continue with next manual instead of failing entire process
+        console.log(`⚠️  Skipping manual ${i + 1}, continuing with remaining manuals...`);
+      }
+    }
+
+    if (ingestedManuals.length === 0) {
+      throw new Error('Failed to ingest any manuals');
+    }
+
+    console.log(`\n🎉 AUTO-INGEST COMPLETE!`);
+    console.log(`   Successfully ingested ${ingestedManuals.length}/${searchResult.manuals.length} manuals`);
     console.log('='.repeat(60));
 
+    // Return all manuals + first one as legacy "manual" field
     return {
       success: true,
-      manualId,
-      message: 'Manual successfully discovered and added',
-      manual: {
-        id: manualId,
-        title: searchResult.title!,
-        pageCount: processingResult.pageCount,
-        sectionsCreated: processingResult.sectionsCreated,
-        model: {
-          id: updatedManual.model.id,
-          modelNumber: updatedManual.model.modelNumber,
-          oem: updatedManual.model.productLine.oem.name,
-          productLine: updatedManual.model.productLine.name,
-        },
-      },
+      manualIds,
+      manuals: ingestedManuals,
+      message: `Successfully discovered and added ${ingestedManuals.length} manual(s)`,
+      // Legacy fields for backward compatibility (return highest priority manual)
+      manualId: ingestedManuals[0].id,
+      manual: ingestedManuals[0],
     };
   } catch (error: any) {
     console.error('\n❌ AUTO-INGEST FAILED:', error.message);
     console.error('='.repeat(60));
 
-    // Cleanup: Delete orphaned file from Supabase storage
-    if (storagePath && !manualId) {
-      console.log('🧹 Cleaning up orphaned file...');
+    // Cleanup: Delete orphaned files from Supabase storage
+    if (storagePaths.length > 0) {
+      console.log(`🧹 Cleaning up ${storagePaths.length} orphaned file(s)...`);
       try {
-        await supabase.storage.from('manuals').remove([storagePath]);
-        console.log(`✅ Deleted orphaned file: ${storagePath}`);
+        await supabase.storage.from('manuals').remove(storagePaths);
+        console.log(`✅ Deleted ${storagePaths.length} orphaned file(s)`);
       } catch (cleanupError) {
-        console.error('⚠️  Failed to cleanup orphaned file:', cleanupError);
+        console.error('⚠️  Failed to cleanup orphaned files:', cleanupError);
       }
     }
 
@@ -278,9 +357,10 @@ async function downloadPDFFromWeb(url: string): Promise<Buffer> {
 async function uploadToSupabase(
   pdfBuffer: Buffer,
   oem: string,
-  modelNumber: string
+  modelNumber: string,
+  manualType: string = 'manual'
 ): Promise<string> {
-  const filename = `${oem}-${modelNumber}-${Date.now()}.pdf`
+  const filename = `${oem}-${modelNumber}-${manualType}-${Date.now()}.pdf`
     .replace(/[^a-zA-Z0-9.-]/g, '-')
     .toLowerCase();
 
@@ -305,6 +385,7 @@ async function createManualRecord(params: {
   oem: string;
   modelNumber: string;
   title: string;
+  manualType?: string;
   sourceUrl: string;
   storagePath: string;
   pageCount: number | null;
@@ -368,7 +449,7 @@ async function createManualRecord(params: {
     data: {
       modelId: model.id,
       title: params.title,
-      manualType: 'service', // Default to service manual
+      manualType: params.manualType || 'service', // Use provided type or default to service
       sourceUrl: params.sourceUrl,
       sourceType: 'oem',
       storagePath: params.storagePath,
