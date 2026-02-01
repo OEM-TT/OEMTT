@@ -617,11 +617,12 @@ export async function getAllChatRequests(req: Request, res: Response) {
  */
 export async function getUserRequests(req: Request, res: Response) {
   try {
-    const { userId } = req.params;
+    const userId = req.params.userId as string;
 
     const questions = await prisma.question.findMany({
       where: { userId },
       include: {
+        user: { select: { email: true, name: true } },
         model: {
           include: {
             productLine: {
@@ -693,7 +694,7 @@ export async function getDiscoveryAnalytics(req: Request, res: Response) {
     // Average processing time
     const processingTimes = searches
       .map(s => s.processingTimeMs)
-      .filter(t => t && t > 0);
+      .filter((t): t is number => t !== null && t > 0);
 
     const avgProcessingTime = processingTimes.length > 0
       ? processingTimes.reduce((a, b) => a + b, 0) / processingTimes.length
@@ -904,7 +905,7 @@ export async function getFailureAnalytics(req: Request, res: Response) {
  */
 export async function getChatRequestDetails(req: Request, res: Response) {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
 
     const question = await prisma.question.findUnique({
       where: { id },
