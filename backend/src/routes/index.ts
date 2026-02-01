@@ -9,6 +9,7 @@ import manualsRoutes from './manuals.routes';
 import ingestionRoutes from './ingestion.routes';
 import chatRoutes from './chat.routes';
 import discoveryRoutes from './discovery.routes';
+import analyticsRoutes from './analytics.routes';
 
 const router = Router();
 
@@ -23,6 +24,7 @@ router.use('/manuals', manualsRoutes);
 router.use('/ingestion', ingestionRoutes);
 router.use('/chat', chatRoutes);
 router.use('/discovery', discoveryRoutes);
+router.use('/analytics', analyticsRoutes);
 
 // API info endpoint
 router.get('/', (req, res) => {

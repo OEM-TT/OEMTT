@@ -3,7 +3,8 @@
  * Handles on-demand manual discovery and ingestion
  */
 
-import { Request, Response } from 'express';
+import { Response } from 'express';
+import { AuthRequest } from '@/middleware/auth';
 import { discoverAndIngestManual } from '@/services/discovery/autoIngest';
 import { AppError } from '@/middleware/errorHandler';
 import { prisma } from '@/config/database';
@@ -15,7 +16,7 @@ import { extractBaseModel, getModelSearchVariants } from '@/utils/modelNumber';
  * POST /api/discovery/manual
  * Body: { oem: string, modelNumber: string }
  */
-export async function discoverManual(req: Request, res: Response) {
+export async function discoverManual(req: AuthRequest, res: Response) {
     try {
         const { oem, modelNumber } = req.body;
 
@@ -69,10 +70,12 @@ export async function discoverManual(req: Request, res: Response) {
  * 
  * GET /api/discovery/search?oem=Carrier&model=19XR
  */
-export async function searchWithDiscovery(req: Request, res: Response) {
+export async function searchWithDiscovery(req: AuthRequest, res: Response) {
+    const searchStartTime = Date.now();
     try {
         const oem = Array.isArray(req.query.oem) ? req.query.oem[0] : req.query.oem;
         const modelNumber = Array.isArray(req.query.model) ? req.query.model[0] : req.query.model;
+        const userId = req.user!.id;
 
         if (!modelNumber) {
             throw new AppError(400, 'model query parameter is required');
@@ -91,6 +94,19 @@ export async function searchWithDiscovery(req: Request, res: Response) {
 
         if (existingManuals.length > 0) {
             console.log(`✅ Found ${existingManuals.length} manual(s) in database`);
+
+            // Track successful database search
+            await trackSearch({
+                userId,
+                oemName: oem as string || 'Unknown',
+                modelNumber: modelNumber as string,
+                searchType: 'database',
+                foundInDatabase: true,
+                usedPerplexity: false,
+                manualsFound: existingManuals.length,
+                processingTimeMs: Date.now() - searchStartTime,
+            });
+
             return res.json({
                 success: true,
                 source: 'database',
@@ -115,6 +131,19 @@ export async function searchWithDiscovery(req: Request, res: Response) {
 
         // If no OEM provided, we can't do discovery (Perplexity needs OEM context)
         if (!oem) {
+            // Track failed search (no OEM)
+            await trackSearch({
+                userId,
+                oemName: 'Unknown',
+                modelNumber: modelNumber as string,
+                searchType: 'failed',
+                foundInDatabase: false,
+                usedPerplexity: false,
+                manualsFound: 0,
+                processingTimeMs: Date.now() - searchStartTime,
+                errorMessage: 'OEM is required for automatic manual discovery',
+            });
+
             return res.status(400).json({
                 success: false,
                 source: 'discovery',
@@ -126,6 +155,19 @@ export async function searchWithDiscovery(req: Request, res: Response) {
         const discoveryResult = await discoverAndIngestManual(oem as string, modelNumber as string);
 
         if (!discoveryResult.success) {
+            // Track failed Perplexity search
+            await trackSearch({
+                userId,
+                oemName: oem as string,
+                modelNumber: modelNumber as string,
+                searchType: 'failed',
+                foundInDatabase: false,
+                usedPerplexity: true,
+                manualsFound: 0,
+                processingTimeMs: Date.now() - searchStartTime,
+                errorMessage: discoveryResult.error,
+            });
+
             return res.status(404).json({
                 success: false,
                 source: 'discovery',
@@ -133,6 +175,18 @@ export async function searchWithDiscovery(req: Request, res: Response) {
                 error: discoveryResult.error,
             });
         }
+
+        // Track successful Perplexity search
+        await trackSearch({
+            userId,
+            oemName: oem as string,
+            modelNumber: modelNumber as string,
+            searchType: 'perplexity',
+            foundInDatabase: false,
+            usedPerplexity: true,
+            manualsFound: discoveryResult.manual ? 1 : 0,
+            processingTimeMs: Date.now() - searchStartTime,
+        });
 
         // Return newly discovered manual
         res.json({
@@ -143,6 +197,30 @@ export async function searchWithDiscovery(req: Request, res: Response) {
         });
     } catch (error: any) {
         console.error('Error in searchWithDiscovery:', error);
+
+        // Track error
+        try {
+            const userId = req.user?.id;
+            const oem = Array.isArray(req.query.oem) ? req.query.oem[0] : req.query.oem;
+            const modelNumber = Array.isArray(req.query.model) ? req.query.model[0] : req.query.model;
+
+            if (userId && modelNumber) {
+                await trackSearch({
+                    userId,
+                    oemName: oem as string || 'Unknown',
+                    modelNumber: modelNumber as string,
+                    searchType: 'failed',
+                    foundInDatabase: false,
+                    usedPerplexity: false,
+                    manualsFound: 0,
+                    processingTimeMs: Date.now() - searchStartTime,
+                    errorMessage: error.message || 'Unknown error',
+                });
+            }
+        } catch (trackError) {
+            console.error('Failed to track search error:', trackError);
+        }
+
         res.status(error.statusCode || 500).json({
             success: false,
             error: error.message || 'Failed to search or discover manual',
@@ -155,7 +233,7 @@ export async function searchWithDiscovery(req: Request, res: Response) {
  * 
  * GET /api/discovery/status/:manualId
  */
-export async function getDiscoveryStatus(req: Request, res: Response) {
+export async function getDiscoveryStatus(req: AuthRequest, res: Response) {
     try {
         const manualId = Array.isArray(req.params.manualId) ? req.params.manualId[0] : req.params.manualId;
 
@@ -339,4 +417,51 @@ async function searchDatabaseExpanded(oem: string, modelNumber: string) {
     });
 
     return manuals;
+}
+
+/**
+ * Helper: Track search in analytics
+ */
+async function trackSearch(data: {
+    userId: string;
+    oemName: string;
+    modelNumber: string;
+    searchType: string;
+    foundInDatabase: boolean;
+    usedPerplexity: boolean;
+    manualsFound: number;
+    processingTimeMs: number;
+    errorMessage?: string;
+}) {
+    try {
+        // Look up the internal database user ID
+        const dbUser = await prisma.user.findUnique({
+            where: { supabaseUserId: data.userId },
+            select: { id: true },
+        });
+
+        if (!dbUser) {
+            console.warn('⚠️  User not found for search tracking');
+            return;
+        }
+
+        await prisma.search.create({
+            data: {
+                userId: dbUser.id,
+                oemName: data.oemName,
+                modelNumber: data.modelNumber,
+                searchType: data.searchType,
+                foundInDatabase: data.foundInDatabase,
+                usedPerplexity: data.usedPerplexity,
+                manualsFound: data.manualsFound,
+                processingTimeMs: data.processingTimeMs,
+                errorMessage: data.errorMessage || null,
+            },
+        });
+
+        console.log(`📊 Search tracked: ${data.searchType} (${data.manualsFound} found)`);
+    } catch (error: any) {
+        console.error('⚠️  Failed to track search:', error.message);
+        // Don't throw - tracking shouldn't fail the request
+    }
 }
