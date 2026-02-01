@@ -258,6 +258,10 @@ export async function askQuestion(req: AuthRequest, res: Response) {
             ? context.relevantSections.reduce((sum, s) => sum + s.similarity, 0) / context.relevantSections.length
             : 0.5,
           processingTimeMs: processingTime,
+          inputTokens,
+          outputTokens,
+          totalTokens: inputTokens + outputTokens,
+          estimatedCost: cost,
         },
       });
     } catch (dbError: any) {

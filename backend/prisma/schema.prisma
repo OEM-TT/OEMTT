@@ -27,6 +27,7 @@ model User {
   feedback            Feedback[]
   questions           Question[]
   savedUnits          SavedUnit[]
+  searches            Search[]
 
   @@index([email])
   @@index([supabaseUserId])
@@ -164,6 +165,10 @@ model Question {
   answerSources    Json?          @map("answer_sources")
   confidenceScore  Float?         @map("confidence_score")
   processingTimeMs Int?           @map("processing_time_ms")
+  inputTokens      Int?           @map("input_tokens")
+  outputTokens     Int?           @map("output_tokens")
+  totalTokens      Int?           @map("total_tokens")
+  estimatedCost    Float?         @map("estimated_cost")
   createdAt        DateTime       @default(now()) @map("created_at")
   chat_session_id  String?
   feedback         Feedback[]
@@ -216,4 +221,26 @@ model chat_sessions {
   @@index([last_message_at(sort: Desc)], map: "idx_chat_sessions_last_message")
   @@index([unit_id], map: "idx_chat_sessions_unit_id")
   @@index([user_id], map: "idx_chat_sessions_user_id")
+}
+
+model Search {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  oemName           String   @map("oem_name")
+  modelNumber       String   @map("model_number")
+  searchType        String   @map("search_type") // 'database', 'perplexity', 'failed'
+  foundInDatabase   Boolean  @map("found_in_database") @default(false)
+  usedPerplexity    Boolean  @map("used_perplexity") @default(false)
+  manualsFound      Int      @map("manuals_found") @default(0)
+  processingTimeMs  Int?     @map("processing_time_ms")
+  errorMessage      String?  @map("error_message")
+  createdAt         DateTime @default(now()) @map("created_at")
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([oemName])
+  @@index([modelNumber])
+  @@index([searchType])
+  @@index([createdAt])
+  @@map("searches")
 }

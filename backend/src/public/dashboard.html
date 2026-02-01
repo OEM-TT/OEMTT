@@ -1,0 +1,1437 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OEM Tech Talk - Analytics Dashboard</title>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        body {
+            font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f8f9fa;
+        }
+
+        .nav-item {
+            transition: all 0.2s;
+            cursor: pointer;
+            border-bottom: 3px solid transparent;
+        }
+
+        .nav-item:hover {
+            background: #f3f4f6;
+        }
+
+        .nav-item.active {
+            border-bottom-color: #3b82f6;
+            color: #3b82f6;
+            font-weight: 600;
+        }
+
+        .stat-card {
+            transition: all 0.2s;
+            background: white;
+            border-left: 4px solid transparent;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        .stat-card.blue {
+            border-left-color: #3b82f6;
+        }
+
+        .stat-card.green {
+            border-left-color: #10b981;
+        }
+
+        .stat-card.purple {
+            border-left-color: #8b5cf6;
+        }
+
+        .stat-card.red {
+            border-left-color: #ef4444;
+        }
+
+        .stat-card.orange {
+            border-left-color: #f59e0b;
+        }
+
+        .stat-card.indigo {
+            border-left-color: #6366f1;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 300px;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .badge-success {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .badge-danger {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .badge-info {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+
+        .table-row {
+            transition: background 0.1s;
+        }
+
+        .table-row:hover {
+            background: #f9fafb;
+        }
+
+        .page-content {
+            animation: fadeIn 0.2s ease-in;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+
+            to {
+                opacity: 1;
+            }
+        }
+
+        .filter-btn {
+            padding: 0.5rem 1rem;
+            border: 1px solid #d1d5db;
+            background: white;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .filter-btn:hover {
+            background: #f3f4f6;
+        }
+
+        .filter-btn.active {
+            background: #3b82f6;
+            color: white;
+            border-color: #3b82f6;
+        }
+
+        .pagination-btn {
+            padding: 0.5rem 1rem;
+            border: 1px solid #d1d5db;
+            background: white;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .pagination-btn:hover:not(:disabled) {
+            background: #f3f4f6;
+        }
+
+        .pagination-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .pagination-btn.active {
+            background: #3b82f6;
+            color: white;
+            border-color: #3b82f6;
+        }
+
+        .cursor-pointer {
+            cursor: pointer;
+        }
+
+        .table-row:hover {
+            background-color: #f9fafb;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Header -->
+    <header class="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-lg bg-blue-600 flex items-center justify-center">
+                    <i class="fas fa-chart-line text-xl text-white"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold text-gray-900">OEM Tech Talk Analytics</h1>
+                    <p class="text-xs text-gray-500">Real-time monitoring & insights</p>
+                </div>
+            </div>
+
+            <div class="flex items-center space-x-3">
+                <select id="timeRange"
+                    class="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                    <option value="1h">Last Hour</option>
+                    <option value="4h">Last 4 Hours</option>
+                    <option value="12h">Last 12 Hours</option>
+                    <option value="24h">Last 24 Hours</option>
+                    <option value="week">Last Week</option>
+                    <option value="month">Last Month</option>
+                    <option value="all" selected>All Time</option>
+                </select>
+
+                <button onclick="loadAllData()"
+                    class="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 flex items-center space-x-2">
+                    <i class="fas fa-sync-alt"></i>
+                    <span>Refresh</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Navigation -->
+    <nav class="bg-white shadow-sm border-b border-gray-200 sticky top-[73px] z-40">
+        <div class="max-w-7xl mx-auto px-6">
+            <div class="flex space-x-1 overflow-x-auto">
+                <div class="nav-item active px-5 py-3 flex items-center space-x-2 text-sm"
+                    onclick="showPage('overview')">
+                    <i class="fas fa-home"></i>
+                    <span>Overview</span>
+                </div>
+                <div class="nav-item px-5 py-3 flex items-center space-x-2 text-sm" onclick="showPage('costs')">
+                    <i class="fas fa-dollar-sign"></i>
+                    <span>Cost Analytics</span>
+                </div>
+                <div class="nav-item px-5 py-3 flex items-center space-x-2 text-sm" onclick="showPage('requests')">
+                    <i class="fas fa-list"></i>
+                    <span>All Requests</span>
+                </div>
+                <div class="nav-item px-5 py-3 flex items-center space-x-2 text-sm" onclick="showPage('discovery')">
+                    <i class="fas fa-search"></i>
+                    <span>Discovery</span>
+                </div>
+                <div class="nav-item px-5 py-3 flex items-center space-x-2 text-sm" onclick="showPage('users')">
+                    <i class="fas fa-users"></i>
+                    <span>Users</span>
+                </div>
+                <div class="nav-item px-5 py-3 flex items-center space-x-2 text-sm" onclick="showPage('failures')">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <span>Failures</span>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto px-6 py-6">
+        <!-- Page: Overview -->
+        <div id="page-overview" class="page-content">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                <div class="stat-card blue rounded-lg shadow p-5">
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="text-sm text-gray-600 font-medium">Total Users</div>
+                        <i class="fas fa-users text-2xl text-blue-500"></i>
+                    </div>
+                    <div class="text-3xl font-bold text-gray-900" id="overview-users">-</div>
+                </div>
+
+                <div class="stat-card green rounded-lg shadow p-5">
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="text-sm text-gray-600 font-medium">Questions Asked</div>
+                        <i class="fas fa-question-circle text-2xl text-green-500"></i>
+                    </div>
+                    <div class="text-3xl font-bold text-gray-900" id="overview-questions">-</div>
+                </div>
+
+                <div class="stat-card purple rounded-lg shadow p-5">
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="text-sm text-gray-600 font-medium">Total Manuals</div>
+                        <i class="fas fa-book text-2xl text-purple-500"></i>
+                    </div>
+                    <div class="text-3xl font-bold text-gray-900" id="overview-manuals">-</div>
+                </div>
+
+                <div class="stat-card red rounded-lg shadow p-5">
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="text-sm text-gray-600 font-medium">Total Cost</div>
+                        <i class="fas fa-dollar-sign text-2xl text-red-500"></i>
+                    </div>
+                    <div class="text-3xl font-bold text-gray-900" id="overview-cost">-</div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="bg-white rounded-lg shadow p-6">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-4">Activity Over Time</h3>
+                    <div class="chart-container">
+                        <canvas id="activityChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-lg shadow p-6">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-4">Today's Snapshot</h3>
+                    <div class="grid grid-cols-2 gap-4 mt-6">
+                        <div class="text-center p-4 bg-blue-50 rounded-lg">
+                            <div class="text-xs text-gray-600 mb-2">New Users</div>
+                            <div id="today-users" class="text-2xl font-bold text-blue-600">-</div>
+                        </div>
+                        <div class="text-center p-4 bg-green-50 rounded-lg">
+                            <div class="text-xs text-gray-600 mb-2">Questions</div>
+                            <div id="today-questions" class="text-2xl font-bold text-green-600">-</div>
+                        </div>
+                        <div class="text-center p-4 bg-red-50 rounded-lg">
+                            <div class="text-xs text-gray-600 mb-2">Cost Today</div>
+                            <div id="today-cost" class="text-2xl font-bold text-red-600">-</div>
+                        </div>
+                        <div class="text-center p-4 bg-purple-50 rounded-lg">
+                            <div class="text-xs text-gray-600 mb-2">Active (24h)</div>
+                            <div id="active-users" class="text-2xl font-bold text-purple-600">-</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Page: Cost Analytics (NEW!) -->
+        <div id="page-costs" class="page-content hidden">
+            <!-- Key Metrics -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+                <div class="stat-card red rounded-lg shadow p-5">
+                    <div class="text-sm text-gray-600 font-medium mb-2">Avg Cost/User</div>
+                    <div class="text-2xl font-bold text-gray-900" id="cost-avg-user">-</div>
+                    <div class="text-xs text-gray-500 mt-1">Per month</div>
+                </div>
+                <div class="stat-card blue rounded-lg shadow p-5">
+                    <div class="text-sm text-gray-600 font-medium mb-2">Avg Cost/Question</div>
+                    <div class="text-2xl font-bold text-gray-900" id="cost-avg-question">-</div>
+                </div>
+                <div class="stat-card green rounded-lg shadow p-5">
+                    <div class="text-sm text-gray-600 font-medium mb-2">Avg Cost/Session</div>
+                    <div class="text-2xl font-bold text-gray-900" id="cost-avg-session">-</div>
+                </div>
+                <div class="stat-card purple rounded-lg shadow p-5">
+                    <div class="text-sm text-gray-600 font-medium mb-2">Total Cost</div>
+                    <div class="text-2xl font-bold text-gray-900" id="cost-total">-</div>
+                </div>
+                <div class="stat-card orange rounded-lg shadow p-5">
+                    <div class="text-sm text-gray-600 font-medium mb-2">Active Users</div>
+                    <div class="text-2xl font-bold text-gray-900" id="cost-active-users">-</div>
+                </div>
+            </div>
+
+            <!-- Chat vs Discovery Costs -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                <div class="bg-white rounded-lg shadow p-6">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-4">
+                        <i class="fas fa-comments text-blue-500 mr-2"></i>Chat Costs (OpenAI)
+                    </h3>
+                    <div class="space-y-3">
+                        <div class="flex justify-between items-center">
+                            <span class="text-gray-600">Total Questions</span>
+                            <span id="chat-total-questions" class="font-semibold text-gray-900">-</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-gray-600">Total Cost</span>
+                            <span id="chat-total-cost" class="font-semibold text-gray-900">-</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-gray-600">Avg Cost/Question</span>
+                            <span id="chat-avg-cost" class="font-semibold text-gray-900">-</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-gray-600">% of Total</span>
+                            <span id="chat-percent" class="font-semibold text-blue-600">-</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-lg shadow p-6">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-4">
+                        <i class="fas fa-search text-green-500 mr-2"></i>Discovery Costs (Perplexity)
+                    </h3>
+                    <div class="space-y-3">
+                        <div class="flex justify-between items-center">
+                            <span class="text-gray-600">Total Searches</span>
+                            <span id="discovery-total-searches" class="font-semibold text-gray-900">-</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-gray-600">Total Cost</span>
+                            <span id="discovery-total-cost" class="font-semibold text-gray-900">-</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-gray-600">Avg Cost/Search</span>
+                            <span id="discovery-avg-cost" class="font-semibold text-gray-900">-</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-gray-600">% of Total</span>
+                            <span id="discovery-percent" class="font-semibold text-green-600">-</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Profit Margin Calculator -->
+            <div class="bg-white rounded-lg shadow p-6 mb-6">
+                <h3 class="text-lg font-semibold text-gray-900 mb-4">
+                    <i class="fas fa-chart-line text-purple-500 mr-2"></i>Profit Margin at Different Price Points
+                </h3>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Subscription
+                                    Price</th>
+                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Avg
+                                    Cost/User</th>
+                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Profit/User
+                                </th>
+                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Margin %
+                                </th>
+                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">10 Users
+                                </th>
+                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">100 Users
+                                </th>
+                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">1,000 Users
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody id="profit-margins-table" class="bg-white divide-y divide-gray-200">
+                            <!-- Populated by JS -->
+                        </tbody>
+                    </table>
+                </div>
+                <div class="mt-4 text-sm text-gray-500">
+                    <i class="fas fa-info-circle mr-1"></i>
+                    Based on average monthly cost per user. Costs may vary by usage patterns. Does not include platform
+                    fees, support costs, or infrastructure.
+                </div>
+            </div>
+
+            <!-- Token Averages -->
+            <div class="bg-white rounded-lg shadow p-6 mb-6">
+                <h3 class="text-lg font-semibold text-gray-900 mb-4">Average Token Usage</h3>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div class="text-center p-4 bg-blue-50 rounded-lg">
+                        <div class="text-sm text-gray-600 mb-2">Avg Input Tokens</div>
+                        <div id="cost-avg-input" class="text-2xl font-bold text-blue-600">-</div>
+                    </div>
+                    <div class="text-center p-4 bg-purple-50 rounded-lg">
+                        <div class="text-sm text-gray-600 mb-2">Avg Output Tokens</div>
+                        <div id="cost-avg-output" class="text-2xl font-bold text-purple-600">-</div>
+                    </div>
+                    <div class="text-center p-4 bg-green-50 rounded-lg">
+                        <div class="text-sm text-gray-600 mb-2">Total Tokens</div>
+                        <div id="cost-total-tokens" class="text-2xl font-bold text-green-600">-</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Cost Distribution -->
+            <div class="bg-white rounded-lg shadow p-6 mb-6">
+                <h3 class="text-lg font-semibold text-gray-900 mb-4">Cost Distribution (Percentiles)</h3>
+                <div class="grid grid-cols-2 md:grid-cols-6 gap-4">
+                    <div class="text-center p-3 bg-gray-50 rounded">
+                        <div class="text-xs text-gray-600 mb-1">Min</div>
+                        <div id="cost-min" class="text-lg font-bold text-gray-900">-</div>
+                    </div>
+                    <div class="text-center p-3 bg-gray-50 rounded">
+                        <div class="text-xs text-gray-600 mb-1">P50</div>
+                        <div id="cost-p50" class="text-lg font-bold text-gray-900">-</div>
+                    </div>
+                    <div class="text-center p-3 bg-gray-50 rounded">
+                        <div class="text-xs text-gray-600 mb-1">P90</div>
+                        <div id="cost-p90" class="text-lg font-bold text-gray-900">-</div>
+                    </div>
+                    <div class="text-center p-3 bg-gray-50 rounded">
+                        <div class="text-xs text-gray-600 mb-1">P95</div>
+                        <div id="cost-p95" class="text-lg font-bold text-gray-900">-</div>
+                    </div>
+                    <div class="text-center p-3 bg-gray-50 rounded">
+                        <div class="text-xs text-gray-600 mb-1">P99</div>
+                        <div id="cost-p99" class="text-lg font-bold text-gray-900">-</div>
+                    </div>
+                    <div class="text-center p-3 bg-gray-50 rounded">
+                        <div class="text-xs text-gray-600 mb-1">Max</div>
+                        <div id="cost-max" class="text-lg font-bold text-gray-900">-</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                <!-- Cost Over Time Chart -->
+                <div class="bg-white rounded-lg shadow p-6">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-4">Daily Cost Trend</h3>
+                    <div class="chart-container">
+                        <canvas id="costOverTimeChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Top Users by Cost -->
+                <div class="bg-white rounded-lg shadow p-6">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-4">Top Users by Cost</h3>
+                    <div class="overflow-auto" style="max-height: 300px;">
+                        <table class="w-full text-sm">
+                            <thead class="bg-gray-50 sticky top-0">
+                                <tr>
+                                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500">User</th>
+                                    <th class="px-4 py-2 text-right text-xs font-medium text-gray-500">Chat Cost</th>
+                                    <th class="px-4 py-2 text-right text-xs font-medium text-gray-500">Discovery Cost
+                                    </th>
+                                    <th class="px-4 py-2 text-right text-xs font-medium text-gray-500">Total Cost</th>
+                                    <th class="px-4 py-2 text-right text-xs font-medium text-gray-500">Est. Monthly</th>
+                                </tr>
+                            </thead>
+                            <tbody id="top-users-cost-table" class="divide-y divide-gray-200">
+                                <!-- Dynamic content -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Page: All Requests -->
+        <div id="page-requests" class="page-content hidden">
+            <div class="bg-white rounded-lg shadow">
+                <!-- Filters -->
+                <div class="p-4 border-b border-gray-200 space-y-3">
+                    <div class="flex flex-wrap items-center gap-3">
+                        <input type="text" id="requests-search" placeholder="Search by question or user..."
+                            class="flex-1 min-w-[200px] px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+
+                        <div class="flex items-center gap-2">
+                            <span class="text-sm text-gray-600">Status:</span>
+                            <button class="filter-btn text-sm active" data-status="all"
+                                onclick="filterRequests('all')">All</button>
+                            <button class="filter-btn text-sm" data-status="success"
+                                onclick="filterRequests('success')">Success</button>
+                            <button class="filter-btn text-sm" data-status="failed"
+                                onclick="filterRequests('failed')">Failed</button>
+                        </div>
+
+                        <div class="flex items-center gap-2">
+                            <span class="text-sm text-gray-600">Sort:</span>
+                            <select id="requests-sort" class="px-3 py-2 text-sm border border-gray-300 rounded-lg"
+                                onchange="sortRequests()">
+                                <option value="time-desc">Newest First</option>
+                                <option value="time-asc">Oldest First</option>
+                                <option value="cost-desc">Highest Cost</option>
+                                <option value="cost-asc">Lowest Cost</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Table -->
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500">Time</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500">User</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500">Question</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500">Unit</th>
+                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500">Tokens</th>
+                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500">Time (s)</th>
+                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500">Cost</th>
+                                <th class="px-4 py-3 text-center text-xs font-medium text-gray-500">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="requests-table" class="divide-y divide-gray-200">
+                            <!-- Dynamic content -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Pagination -->
+                <div class="p-4 border-t border-gray-200 flex items-center justify-between">
+                    <div class="text-sm text-gray-600">
+                        <span id="requests-showing">Showing 0-0 of 0</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button class="pagination-btn text-sm" onclick="changePage(-1)" id="prev-page">
+                            <i class="fas fa-chevron-left"></i> Previous
+                        </button>
+                        <div class="text-sm text-gray-600">
+                            Page <span id="current-page">1</span> of <span id="total-pages">1</span>
+                        </div>
+                        <button class="pagination-btn text-sm" onclick="changePage(1)" id="next-page">
+                            Next <i class="fas fa-chevron-right"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Page: Discovery -->
+        <div id="page-discovery" class="page-content hidden">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                <div class="stat-card blue rounded-lg shadow p-5">
+                    <div class="text-sm text-gray-600 font-medium mb-2">Total Searches</div>
+                    <div class="text-3xl font-bold text-gray-900" id="discovery-total">-</div>
+                </div>
+                <div class="stat-card indigo rounded-lg shadow p-5">
+                    <div class="text-sm text-gray-600 font-medium mb-2">DB Hit Rate</div>
+                    <div class="text-2xl font-bold text-gray-900" id="discovery-db-rate">-</div>
+                </div>
+                <div class="stat-card purple rounded-lg shadow p-5">
+                    <div class="text-sm text-gray-600 font-medium mb-2">Perplexity Rate</div>
+                    <div class="text-2xl font-bold text-gray-900" id="discovery-perp-rate">-</div>
+                </div>
+                <div class="stat-card green rounded-lg shadow p-5">
+                    <div class="text-sm text-gray-600 font-medium mb-2">Success Rate</div>
+                    <div class="text-2xl font-bold text-gray-900" id="discovery-success">-</div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="bg-white rounded-lg shadow p-6">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-4">Search Results</h3>
+                    <div class="chart-container">
+                        <canvas id="discoveryPieChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-lg shadow p-6">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-4">Top Searched Models</h3>
+                    <div class="chart-container">
+                        <canvas id="topModelsChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Page: Users -->
+        <div id="page-users" class="page-content hidden">
+            <div class="bg-white rounded-lg shadow">
+                <div class="p-6 border-b border-gray-200">
+                    <h3 class="text-lg font-semibold text-gray-900">User Activity & Costs</h3>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500">Email</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500">Name</th>
+                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500">Questions</th>
+                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500">Units</th>
+                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500">Total Cost</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500">Last Active</th>
+                                <th class="px-4 py-3 text-center text-xs font-medium text-gray-500">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="users-table" class="divide-y divide-gray-200">
+                            <!-- Dynamic content -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Page: User Detail -->
+        <div id="page-user-detail" class="page-content hidden">
+            <button onclick="showPage('users')"
+                class="mb-4 px-4 py-2 text-blue-600 hover:text-blue-800 flex items-center space-x-2 text-sm">
+                <i class="fas fa-arrow-left"></i>
+                <span>Back to Users</span>
+            </button>
+
+            <div class="bg-white rounded-lg shadow p-6 mb-6">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h2 class="text-2xl font-bold text-gray-900" id="user-detail-name">-</h2>
+                        <p class="text-gray-600 text-sm" id="user-detail-email">-</p>
+                    </div>
+                    <div class="grid grid-cols-3 gap-6">
+                        <div class="text-center">
+                            <div class="text-xs text-gray-600">Questions</div>
+                            <div id="user-detail-questions" class="text-2xl font-bold text-blue-600">-</div>
+                        </div>
+                        <div class="text-center">
+                            <div class="text-xs text-gray-600">Units</div>
+                            <div id="user-detail-units" class="text-2xl font-bold text-green-600">-</div>
+                        </div>
+                        <div class="text-center">
+                            <div class="text-xs text-gray-600">Total Cost</div>
+                            <div id="user-detail-cost" class="text-2xl font-bold text-red-600">-</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-lg shadow">
+                <div class="p-6 border-b border-gray-200">
+                    <h3 class="text-lg font-semibold text-gray-900">User's Requests</h3>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500">Time</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500">Question</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500">Unit</th>
+                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500">Tokens</th>
+                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500">Time</th>
+                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500">Cost</th>
+                                <th class="px-4 py-3 text-center text-xs font-medium text-gray-500">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="user-detail-requests-table" class="divide-y divide-gray-200">
+                            <!-- Dynamic content -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Page: Failures -->
+        <div id="page-failures" class="page-content hidden">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                <div class="stat-card red rounded-lg shadow p-5">
+                    <div class="text-sm text-gray-600 font-medium mb-2">Failed Chats</div>
+                    <div class="text-3xl font-bold text-gray-900" id="failures-chats">-</div>
+                </div>
+                <div class="stat-card orange rounded-lg shadow p-5">
+                    <div class="text-sm text-gray-600 font-medium mb-2">Failed Discoveries</div>
+                    <div class="text-3xl font-bold text-gray-900" id="failures-discoveries">-</div>
+                </div>
+                <div class="stat-card yellow rounded-lg shadow p-5">
+                    <div class="text-sm text-gray-600 font-medium mb-2">Slow Queries (>10s)</div>
+                    <div class="text-3xl font-bold text-gray-900" id="failures-slow">-</div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-lg shadow">
+                <div class="p-6 border-b border-gray-200">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-lg font-semibold text-gray-900">Failed & Slow Responses</h3>
+                        <div class="text-sm text-gray-500" id="failures-showing">-</div>
+                    </div>
+
+                    <!-- Filters -->
+                    <div class="flex flex-wrap gap-3 mb-4">
+                        <div class="flex-1 min-w-[200px]">
+                            <input type="text" id="failures-search" placeholder="Search by user, question..."
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+                        <select id="failures-type-filter"
+                            class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            onchange="filterFailures()">
+                            <option value="all">All Issues</option>
+                            <option value="failed">Failed Only</option>
+                            <option value="slow">Slow Only</option>
+                        </select>
+                        <select id="failures-sort"
+                            class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            onchange="sortFailures()">
+                            <option value="time-desc">Newest First</option>
+                            <option value="time-asc">Oldest First</option>
+                            <option value="duration-desc">Slowest First</option>
+                            <option value="duration-asc">Fastest First</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500">Time</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500">User</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500">Question</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500">Unit</th>
+                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500">Tokens</th>
+                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500">Duration</th>
+                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500">Cost</th>
+                                <th class="px-4 py-3 text-center text-xs font-medium text-gray-500">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="failures-table" class="divide-y divide-gray-200">
+                            <!-- Dynamic content -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Pagination -->
+                <div class="px-6 py-4 border-t border-gray-200 flex items-center justify-between">
+                    <button id="failures-prev-page" onclick="changeFailuresPage(-1)"
+                        class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
+                        Previous
+                    </button>
+                    <span class="text-sm text-gray-700">
+                        Page <span id="failures-current-page">1</span> of <span id="failures-total-pages">1</span>
+                    </span>
+                    <button id="failures-next-page" onclick="changeFailuresPage(1)"
+                        class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
+                        Next
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Failure Detail Modal -->
+        <div id="failure-modal"
+            class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4"
+            onclick="event.target === this && closeFailureModal()">
+            <div class="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+                <div class="p-6 border-b border-gray-200 flex justify-between items-center sticky top-0 bg-white">
+                    <h3 class="text-xl font-semibold text-gray-900">Request Details</h3>
+                    <button onclick="closeFailureModal()" class="text-gray-400 hover:text-gray-600">
+                        <i class="fas fa-times text-xl"></i>
+                    </button>
+                </div>
+                <div id="failure-modal-content" class="p-6 space-y-6">
+                    <!-- Dynamic content -->
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // Global state
+        let charts = {};
+        let allUsers = [];
+        let allRequests = [];
+        let allFailures = [];
+        let currentPage = 1;
+        let pageSize = 50;
+        let currentFilter = { status: 'all', search: '', sort: 'time-desc' };
+        let failuresPage = 1;
+        let failuresPageSize = 50;
+        let failuresFilter = { type: 'all', search: '', sort: 'time-desc' };
+
+        const API_BASE = '/api/analytics';
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            loadAllData();
+            setInterval(loadAllData, 30000); // Auto-refresh every 30s
+            document.getElementById('timeRange').addEventListener('change', loadAllData);
+            document.getElementById('requests-search')?.addEventListener('input', () => {
+                currentFilter.search = document.getElementById('requests-search').value;
+                currentPage = 1;
+                loadRequestsPage();
+            });
+            document.getElementById('failures-search')?.addEventListener('input', () => {
+                failuresFilter.search = document.getElementById('failures-search').value;
+                failuresPage = 1;
+                loadFailuresPage();
+            });
+        });
+
+        // Page navigation
+        function showPage(pageName) {
+            document.querySelectorAll('.page-content').forEach(el => el.classList.add('hidden'));
+            document.getElementById(`page-${pageName}`).classList.remove('hidden');
+            document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+            event.target.closest('.nav-item').classList.add('active');
+
+            // Load page-specific data
+            if (pageName === 'requests') loadRequestsPage();
+            if (pageName === 'costs') loadCostAnalytics();
+        }
+
+        function showUserDetail(userId) {
+            const user = allUsers.find(u => u.id === userId);
+            if (!user) return;
+            document.getElementById('user-detail-name').textContent = user.name || 'Unnamed User';
+            document.getElementById('user-detail-email').textContent = user.email;
+            document.getElementById('user-detail-questions').textContent = user.questionsAsked;
+            document.getElementById('user-detail-units').textContent = user.unitsSaved;
+            document.getElementById('user-detail-cost').textContent = '$' + user.totalCost.toFixed(4);
+            loadUserRequests(userId);
+            document.querySelectorAll('.page-content').forEach(el => el.classList.add('hidden'));
+            document.getElementById('page-user-detail').classList.remove('hidden');
+        }
+
+        // Load all data
+        async function loadAllData() {
+            const timeRange = document.getElementById('timeRange').value;
+            const params = `?timeRange=${timeRange}`;
+            try {
+                await Promise.all([
+                    loadOverview(params),
+                    loadDiscoveryAnalytics(params),
+                    loadUserAnalytics(params),
+                    loadFailureAnalytics(params),
+                ]);
+            } catch (error) {
+                console.error('Error loading analytics:', error);
+            }
+        }
+
+        async function loadOverview(params) {
+            const response = await fetch(`${API_BASE}/overview${params}`);
+            const data = await response.json();
+            document.getElementById('overview-users').textContent = data.totals.users.toLocaleString();
+            document.getElementById('overview-questions').textContent = data.totals.questions.toLocaleString();
+            document.getElementById('overview-manuals').textContent = data.totals.manuals.toLocaleString();
+            document.getElementById('overview-cost').textContent = '$' + data.costs.total.toFixed(2);
+            document.getElementById('today-users').textContent = data.today.newUsers;
+            document.getElementById('today-questions').textContent = data.today.questions;
+            document.getElementById('today-cost').textContent = '$' + data.today.cost.toFixed(4);
+            document.getElementById('active-users').textContent = data.activeUsers;
+            renderActivityChart(data.activityChart);
+        }
+
+        async function loadCostAnalytics() {
+            const timeRange = document.getElementById('timeRange').value;
+            const response = await fetch(`${API_BASE}/costs?timeRange=${timeRange}`);
+            const data = await response.json();
+
+            // Top metrics
+            document.getElementById('cost-avg-user').textContent = '$' + data.overview.avgMonthlyCostPerUser.toFixed(4);
+            document.getElementById('cost-avg-question').textContent = '$' + data.overview.avgCostPerQuestion.toFixed(6);
+            document.getElementById('cost-avg-session').textContent = '$' + data.overview.avgCostPerSession.toFixed(6);
+            document.getElementById('cost-total').textContent = '$' + data.overview.totalCost.toFixed(4);
+            document.getElementById('cost-active-users').textContent = data.overview.activeUsers.toLocaleString();
+
+            // Chat costs
+            document.getElementById('chat-total-questions').textContent = data.chat.totalQuestions.toLocaleString();
+            document.getElementById('chat-total-cost').textContent = '$' + data.chat.chatCost.toFixed(4);
+            document.getElementById('chat-avg-cost').textContent = '$' + data.chat.avgCostPerQuestion.toFixed(6);
+            document.getElementById('chat-percent').textContent = data.chat.percentOfTotal.toFixed(1) + '%';
+
+            // Discovery costs
+            document.getElementById('discovery-total-searches').textContent = data.discovery.totalSearches.toLocaleString();
+            document.getElementById('discovery-total-cost').textContent = '$' + data.discovery.perplexityCost.toFixed(4);
+            document.getElementById('discovery-avg-cost').textContent = '$' + data.discovery.avgCostPerSearch.toFixed(6);
+            document.getElementById('discovery-percent').textContent = data.discovery.percentOfTotal.toFixed(1) + '%';
+
+            // Profit margins table
+            const profitTbody = document.getElementById('profit-margins-table');
+            profitTbody.innerHTML = data.profitMargins.map(p => {
+                const profit10 = (p.profit * 10).toFixed(2);
+                const profit100 = (p.profit * 100).toFixed(2);
+                const profit1000 = (p.profit * 1000).toFixed(2);
+                const marginClass = p.marginPercent >= 70 ? 'text-green-600' : p.marginPercent >= 50 ? 'text-yellow-600' : 'text-red-600';
+                return `
+                <tr class="table-row">
+                    <td class="px-4 py-3 text-gray-900 font-semibold">$${p.price.toFixed(2)}/month</td>
+                    <td class="px-4 py-3 text-right text-gray-600">$${p.avgCost.toFixed(4)}</td>
+                    <td class="px-4 py-3 text-right font-semibold ${p.profit > 0 ? 'text-green-600' : 'text-red-600'}">$${p.profit.toFixed(4)}</td>
+                    <td class="px-4 py-3 text-right font-bold ${marginClass}">${p.marginPercent.toFixed(1)}%</td>
+                    <td class="px-4 py-3 text-right text-gray-600">$${profit10}</td>
+                    <td class="px-4 py-3 text-right text-gray-600">$${profit100}</td>
+                    <td class="px-4 py-3 text-right text-gray-600">$${profit1000}</td>
+                </tr>
+            `;
+            }).join('');
+
+            // Token averages
+            document.getElementById('cost-avg-input').textContent = data.tokens.avgInputTokens.toLocaleString();
+            document.getElementById('cost-avg-output').textContent = data.tokens.avgOutputTokens.toLocaleString();
+            document.getElementById('cost-total-tokens').textContent = (data.tokens.totalInputTokens + data.tokens.totalOutputTokens).toLocaleString();
+
+            // Cost distribution
+            document.getElementById('cost-min').textContent = '$' + data.costDistribution.min.toFixed(6);
+            document.getElementById('cost-p50').textContent = '$' + data.costDistribution.p50.toFixed(6);
+            document.getElementById('cost-p90').textContent = '$' + data.costDistribution.p90.toFixed(6);
+            document.getElementById('cost-p95').textContent = '$' + data.costDistribution.p95.toFixed(6);
+            document.getElementById('cost-p99').textContent = '$' + data.costDistribution.p99.toFixed(6);
+            document.getElementById('cost-max').textContent = '$' + data.costDistribution.max.toFixed(6);
+
+            renderCostOverTimeChart(data.costOverTime);
+
+            // Top users table
+            const tbody = document.getElementById('top-users-cost-table');
+            tbody.innerHTML = data.userCosts.map(u => `
+                <tr class="table-row">
+                    <td class="px-4 py-2 text-gray-900">${u.email}</td>
+                    <td class="px-4 py-2 text-right text-gray-600">$${u.chatCost.toFixed(4)}</td>
+                    <td class="px-4 py-2 text-right text-gray-600">$${u.discoveryCost.toFixed(4)}</td>
+                    <td class="px-4 py-2 text-right font-semibold text-gray-900">$${u.totalCost.toFixed(4)}</td>
+                    <td class="px-4 py-2 text-right text-gray-600">$${u.estimatedMonthlyCost.toFixed(4)}</td>
+                </tr>
+            `).join('');
+        }
+
+        async function loadRequestsPage() {
+            const timeRange = document.getElementById('timeRange').value;
+            const url = `${API_BASE}/chat/requests?timeRange=${timeRange}&page=${currentPage}&pageSize=${pageSize}&status=${currentFilter.status}&user=${encodeURIComponent(currentFilter.search)}&sortBy=${currentFilter.sort.split('-')[0]}&sortOrder=${currentFilter.sort.split('-')[1]}`;
+
+            const response = await fetch(url);
+            const data = await response.json();
+
+            allRequests = data.requests || [];
+            renderRequestsTable(allRequests);
+
+            const start = (currentPage - 1) * pageSize + 1;
+            const end = Math.min(currentPage * pageSize, data.pagination.totalCount);
+            document.getElementById('requests-showing').textContent = `Showing ${start}-${end} of ${data.pagination.totalCount}`;
+            document.getElementById('current-page').textContent = currentPage;
+            document.getElementById('total-pages').textContent = data.pagination.totalPages;
+            document.getElementById('prev-page').disabled = currentPage === 1;
+            document.getElementById('next-page').disabled = currentPage >= data.pagination.totalPages;
+        }
+
+        function renderRequestsTable(requests) {
+            const tbody = document.getElementById('requests-table');
+            tbody.innerHTML = requests.map(q => {
+                const statusBadge = q.isFailed
+                    ? '<span class="badge badge-danger"><i class="fas fa-times"></i> Failed</span>'
+                    : '<span class="badge badge-success"><i class="fas fa-check"></i> Success</span>';
+                return `
+                <tr class="table-row cursor-pointer hover:bg-gray-50" onclick="showRequestDetail('${q.id}')">
+                    <td class="px-4 py-3 text-gray-500">${new Date(q.timestamp).toLocaleString()}</td>
+                    <td class="px-4 py-3 text-gray-900">${q.user}</td>
+                    <td class="px-4 py-3 text-gray-900">${q.question.substring(0, 40)}...</td>
+                    <td class="px-4 py-3 text-gray-600">${q.unit.substring(0, 20)}</td>
+                    <td class="px-4 py-3 text-right text-gray-600">${q.totalTokens.toLocaleString()}</td>
+                    <td class="px-4 py-3 text-right text-gray-600">${(q.processingTime / 1000).toFixed(1)}</td>
+                    <td class="px-4 py-3 text-right font-semibold text-gray-900">$${q.cost.toFixed(6)}</td>
+                    <td class="px-4 py-3 text-center">${statusBadge}</td>
+                </tr>
+            `;
+            }).join('') || '<tr><td colspan="8" class="px-4 py-8 text-center text-gray-500">No requests found</td></tr>';
+        }
+
+        function filterRequests(status) {
+            currentFilter.status = status;
+            currentPage = 1;
+            document.querySelectorAll('[data-status]').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+            loadRequestsPage();
+        }
+
+        function sortRequests() {
+            currentFilter.sort = document.getElementById('requests-sort').value;
+            currentPage = 1;
+            loadRequestsPage();
+        }
+
+        function changePage(delta) {
+            currentPage += delta;
+            loadRequestsPage();
+        }
+
+        async function loadDiscoveryAnalytics(params) {
+            const response = await fetch(`${API_BASE}/discovery${params}`);
+            const data = await response.json();
+            document.getElementById('discovery-total').textContent = data.metrics.totalSearches.toLocaleString();
+            document.getElementById('discovery-db-rate').textContent = data.metrics.dbHitRate.toFixed(1) + '%';
+            document.getElementById('discovery-perp-rate').textContent = data.metrics.perplexityRate.toFixed(1) + '%';
+            document.getElementById('discovery-success').textContent = data.metrics.successRate.toFixed(1) + '%';
+            renderDiscoveryPieChart(data.sourceBreakdown);
+            renderTopModelsChart(data.topModels);
+        }
+
+        async function loadUserAnalytics(params) {
+            const response = await fetch(`${API_BASE}/users${params}`);
+            const data = await response.json();
+            allUsers = data.users || [];
+            const tbody = document.getElementById('users-table');
+            tbody.innerHTML = allUsers.map(u => `
+                <tr class="table-row">
+                    <td class="px-4 py-3 text-gray-900">${u.email}</td>
+                    <td class="px-4 py-3 text-gray-900">${u.name || 'N/A'}</td>
+                    <td class="px-4 py-3 text-right font-semibold text-gray-900">${u.questionsAsked}</td>
+                    <td class="px-4 py-3 text-right text-gray-900">${u.unitsSaved}</td>
+                    <td class="px-4 py-3 text-right font-semibold text-gray-900">$${u.totalCost.toFixed(4)}</td>
+                    <td class="px-4 py-3 text-gray-500">${u.lastActive ? new Date(u.lastActive).toLocaleDateString() : 'Never'}</td>
+                    <td class="px-4 py-3 text-center">
+                        <button onclick="showUserDetail('${u.id}')" class="text-blue-600 hover:text-blue-800 font-medium text-sm">
+                            <i class="fas fa-eye"></i> View
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        async function loadUserRequests(userId) {
+            const response = await fetch(`${API_BASE}/users/${userId}/requests`);
+            const data = await response.json();
+            const tbody = document.getElementById('user-detail-requests-table');
+            tbody.innerHTML = data.requests.map(q => {
+                const statusBadge = q.isFailed
+                    ? '<span class="badge badge-danger"><i class="fas fa-times"></i> Failed</span>'
+                    : '<span class="badge badge-success"><i class="fas fa-check"></i> Success</span>';
+                return `
+                <tr class="table-row cursor-pointer hover:bg-gray-50" onclick="showRequestDetail('${q.id}')">
+                    <td class="px-4 py-3 text-gray-500">${new Date(q.timestamp).toLocaleString()}</td>
+                    <td class="px-4 py-3 text-gray-900">${q.question.substring(0, 50)}...</td>
+                    <td class="px-4 py-3 text-gray-600">${q.unit}</td>
+                    <td class="px-4 py-3 text-right text-gray-600">${q.totalTokens.toLocaleString()}</td>
+                    <td class="px-4 py-3 text-right text-gray-600">${(q.processingTime / 1000).toFixed(1)}s</td>
+                    <td class="px-4 py-3 text-right font-semibold text-gray-900">$${q.cost.toFixed(6)}</td>
+                    <td class="px-4 py-3 text-center">${statusBadge}</td>
+                </tr>
+            `;
+            }).join('');
+        }
+
+        async function loadFailureAnalytics(params) {
+            const response = await fetch(`${API_BASE}/failures${params}`);
+            const data = await response.json();
+            document.getElementById('failures-chats').textContent = data.summary.failedChats;
+            document.getElementById('failures-discoveries').textContent = data.summary.failedDiscoveries;
+            document.getElementById('failures-slow').textContent = data.summary.slowQueries;
+
+            // Combine failed chats and slow queries for unified table
+            allFailures = [
+                ...data.failedChats.map(f => ({ ...f, type: 'failed', isFailed: true })),
+                ...data.slowQueries.map(q => ({ ...q, type: 'slow', isFailed: false }))
+            ];
+
+            loadFailuresPage();
+        }
+
+        async function loadFailuresPage() {
+            // Filter by type
+            let filtered = allFailures;
+            if (failuresFilter.type === 'failed') {
+                filtered = allFailures.filter(f => f.type === 'failed');
+            } else if (failuresFilter.type === 'slow') {
+                filtered = allFailures.filter(f => f.type === 'slow');
+            }
+
+            // Filter by search
+            if (failuresFilter.search) {
+                const search = failuresFilter.search.toLowerCase();
+                filtered = filtered.filter(f =>
+                    f.user.toLowerCase().includes(search) ||
+                    f.question.toLowerCase().includes(search) ||
+                    (f.unit && f.unit.toLowerCase().includes(search))
+                );
+            }
+
+            // Sort
+            const [sortBy, sortOrder] = failuresFilter.sort.split('-');
+            filtered.sort((a, b) => {
+                let aVal, bVal;
+                if (sortBy === 'time') {
+                    aVal = new Date(a.timestamp).getTime();
+                    bVal = new Date(b.timestamp).getTime();
+                } else if (sortBy === 'duration') {
+                    aVal = a.processingTime || a.duration || 0;
+                    bVal = b.processingTime || b.duration || 0;
+                }
+                return sortOrder === 'asc' ? aVal - bVal : bVal - aVal;
+            });
+
+            // Paginate
+            const start = (failuresPage - 1) * failuresPageSize;
+            const end = start + failuresPageSize;
+            const paginated = filtered.slice(start, end);
+            const totalPages = Math.ceil(filtered.length / failuresPageSize);
+
+            // Render table
+            renderFailuresTable(paginated);
+
+            // Update pagination
+            document.getElementById('failures-showing').textContent = `Showing ${start + 1}-${Math.min(end, filtered.length)} of ${filtered.length}`;
+            document.getElementById('failures-current-page').textContent = failuresPage;
+            document.getElementById('failures-total-pages').textContent = totalPages || 1;
+            document.getElementById('failures-prev-page').disabled = failuresPage === 1;
+            document.getElementById('failures-next-page').disabled = failuresPage >= totalPages;
+        }
+
+        function renderFailuresTable(failures) {
+            const tbody = document.getElementById('failures-table');
+            tbody.innerHTML = failures.map(f => {
+                const statusBadge = f.isFailed
+                    ? '<span class="badge badge-danger"><i class="fas fa-times"></i> Failed</span>'
+                    : '<span class="badge" style="background: #fef3c7; color: #92400e;"><i class="fas fa-clock"></i> Slow</span>';
+                const duration = f.processingTime || f.duration || 0;
+                return `
+                <tr class="table-row cursor-pointer hover:bg-gray-50" onclick="showFailureDetail('${f.id}')">
+                    <td class="px-4 py-3 text-gray-500">${new Date(f.timestamp).toLocaleString()}</td>
+                    <td class="px-4 py-3 text-gray-900">${f.user}</td>
+                    <td class="px-4 py-3 text-gray-900">${f.question.substring(0, 50)}...</td>
+                    <td class="px-4 py-3 text-gray-600">${(f.unit || '-').substring(0, 20)}</td>
+                    <td class="px-4 py-3 text-right text-gray-600">${(f.totalTokens || 0).toLocaleString()}</td>
+                    <td class="px-4 py-3 text-right text-gray-600">${(duration / 1000).toFixed(1)}s</td>
+                    <td class="px-4 py-3 text-right font-semibold text-gray-900">$${(f.cost || 0).toFixed(6)}</td>
+                    <td class="px-4 py-3 text-center">${statusBadge}</td>
+                </tr>
+            `;
+            }).join('') || '<tr><td colspan="8" class="px-4 py-8 text-center text-gray-500">No failures or slow queries found</td></tr>';
+        }
+
+        function filterFailures() {
+            failuresFilter.type = document.getElementById('failures-type-filter').value;
+            failuresPage = 1;
+            loadFailuresPage();
+        }
+
+        function sortFailures() {
+            failuresFilter.sort = document.getElementById('failures-sort').value;
+            failuresPage = 1;
+            loadFailuresPage();
+        }
+
+        function changeFailuresPage(delta) {
+            failuresPage += delta;
+            loadFailuresPage();
+        }
+
+        // Alias for backwards compatibility with failures page
+        async function showFailureDetail(id) {
+            await showRequestDetail(id);
+        }
+
+        function analyzeFailure(data) {
+            const reasons = [];
+
+            if (data.answer && (data.answer.toLowerCase().includes("don't have") ||
+                data.answer.toLowerCase().includes("i don't know") ||
+                data.answer.toLowerCase().includes("cannot provide"))) {
+                reasons.push("• AI indicated it lacked information to answer the question");
+            }
+
+            if (!data.sources || data.sources.length === 0) {
+                reasons.push("• No relevant manual sections were found or used");
+            }
+
+            if ((data.confidenceScore || 0) < 0.5) {
+                reasons.push("• Low confidence score indicates uncertain answer");
+            }
+
+            if ((data.totalTokens || 0) < 100) {
+                reasons.push("• Very short response may indicate retrieval failure");
+            }
+
+            if (reasons.length === 0) {
+                reasons.push("• Response contained failure keywords or patterns");
+            }
+
+            return reasons.join('<br>');
+        }
+
+        // Generic function to show any request detail (works for all pages)
+        async function showRequestDetail(id) {
+            try {
+                const response = await fetch(`${API_BASE}/chat/${id}`);
+                const data = await response.json();
+
+                const modalContent = document.getElementById('failure-modal-content');
+                modalContent.innerHTML = `
+                    <div class="space-y-6">
+                        <!-- Status Overview -->
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <div class="bg-gray-50 p-4 rounded-lg">
+                                <div class="text-xs text-gray-500 mb-1">Status</div>
+                                <div class="font-semibold ${data.isFailed ? 'text-red-600' : 'text-green-600'}">
+                                    ${data.isFailed ? '❌ Failed' : '✅ Success'}
+                                </div>
+                            </div>
+                            <div class="bg-gray-50 p-4 rounded-lg">
+                                <div class="text-xs text-gray-500 mb-1">Tokens</div>
+                                <div class="font-semibold text-gray-900">${(data.totalTokens || 0).toLocaleString()}</div>
+                                <div class="text-xs text-gray-500">${data.inputTokens || 0} in / ${data.outputTokens || 0} out</div>
+                            </div>
+                            <div class="bg-gray-50 p-4 rounded-lg">
+                                <div class="text-xs text-gray-500 mb-1">Duration</div>
+                                <div class="font-semibold text-gray-900">${((data.processingTime || 0) / 1000).toFixed(2)}s</div>
+                            </div>
+                            <div class="bg-gray-50 p-4 rounded-lg">
+                                <div class="text-xs text-gray-500 mb-1">Cost</div>
+                                <div class="font-semibold text-gray-900">$${(data.cost || 0).toFixed(6)}</div>
+                            </div>
+                        </div>
+
+                        <!-- User & Unit Info -->
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <div class="text-sm font-medium text-gray-500 mb-1">User</div>
+                                <div class="text-gray-900">${data.user || 'Unknown'}</div>
+                            </div>
+                            <div>
+                                <div class="text-sm font-medium text-gray-500 mb-1">Unit</div>
+                                <div class="text-gray-900">${data.unit || 'Not specified'}</div>
+                            </div>
+                            <div>
+                                <div class="text-sm font-medium text-gray-500 mb-1">Timestamp</div>
+                                <div class="text-gray-900">${new Date(data.timestamp).toLocaleString()}</div>
+                            </div>
+                            <div>
+                                <div class="text-sm font-medium text-gray-500 mb-1">Confidence Score</div>
+                                <div class="text-gray-900">${data.confidenceScore || 'N/A'}</div>
+                            </div>
+                        </div>
+
+                        <!-- Question -->
+                        <div>
+                            <div class="text-sm font-medium text-gray-500 mb-2">Question</div>
+                            <div class="bg-blue-50 p-4 rounded-lg text-gray-900 whitespace-pre-wrap">${data.question}</div>
+                        </div>
+
+                        <!-- Answer -->
+                        <div>
+                            <div class="text-sm font-medium text-gray-500 mb-2">Answer</div>
+                            <div class="bg-gray-50 p-4 rounded-lg text-gray-900 whitespace-pre-wrap max-h-96 overflow-y-auto">${data.answer || 'No answer provided'}</div>
+                        </div>
+
+                        <!-- Sources -->
+                        ${data.sources && data.sources.length > 0 ? `
+                        <div>
+                            <div class="text-sm font-medium text-gray-500 mb-2">Sources Used</div>
+                            <div class="space-y-2">
+                                ${data.sources.map(s => `
+                                    <div class="bg-gray-50 p-3 rounded text-sm">
+                                        <div class="font-medium text-gray-900">${s.title || 'Source'}</div>
+                                        <div class="text-gray-600 text-xs">${s.type || 'Manual'} - Page ${s.page || 'N/A'}</div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                        ` : ''}
+
+                        <!-- Failure Analysis -->
+                        ${data.isFailed ? `
+                        <div class="bg-red-50 border border-red-200 rounded-lg p-4">
+                            <div class="font-medium text-red-900 mb-2">
+                                <i class="fas fa-exclamation-triangle mr-2"></i>Why This Failed
+                            </div>
+                            <div class="text-red-800 text-sm space-y-1">
+                                ${analyzeFailure(data)}
+                            </div>
+                        </div>
+                        ` : ''}
+
+                        <!-- Performance Warning -->
+                        ${(data.processingTime || 0) > 10000 ? `
+                        <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                            <div class="font-medium text-yellow-900 mb-2">
+                                <i class="fas fa-clock mr-2"></i>Performance Issue
+                            </div>
+                            <div class="text-yellow-800 text-sm">
+                                This query took ${((data.processingTime || 0) / 1000).toFixed(1)}s to process, which is slower than expected.
+                                ${(data.totalTokens || 0) > 15000 ? ' High token count may have contributed to the delay.' : ''}
+                            </div>
+                        </div>
+                        ` : ''}
+                    </div>
+                `;
+
+                document.getElementById('failure-modal').classList.remove('hidden');
+            } catch (error) {
+                console.error('Failed to load request details:', error);
+                alert('Failed to load details');
+            }
+        }
+
+        function closeFailureModal() {
+            document.getElementById('failure-modal').classList.add('hidden');
+        }
+
+        // Charts
+        function renderActivityChart(data) {
+            if (charts.activity) charts.activity.destroy();
+            const ctx = document.getElementById('activityChart').getContext('2d');
+            charts.activity = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.map(d => new Date(d.date).toLocaleDateString()),
+                    datasets: [{
+                        label: 'Questions',
+                        data: data.map(d => d.count),
+                        borderColor: '#3b82f6',
+                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                        tension: 0.4,
+                        fill: true,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } }
+                }
+            });
+        }
+
+        function renderCostOverTimeChart(data) {
+            if (charts.costOverTime) charts.costOverTime.destroy();
+            const ctx = document.getElementById('costOverTimeChart').getContext('2d');
+            charts.costOverTime = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.map(d => new Date(d.date).toLocaleDateString()),
+                    datasets: [{
+                        label: 'Daily Cost',
+                        data: data.map(d => d.cost),
+                        borderColor: '#ef4444',
+                        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                        tension: 0.4,
+                        fill: true,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: {
+                            ticks: {
+                                callback: function (value) {
+                                    return '$' + value.toFixed(4);
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderDiscoveryPieChart(data) {
+            if (charts.discoveryPie) charts.discoveryPie.destroy();
+            const ctx = document.getElementById('discoveryPieChart').getContext('2d');
+            charts.discoveryPie = new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: ['Database', 'Perplexity', 'Failed'],
+                    datasets: [{
+                        data: [data.database, data.perplexity, data.failed],
+                        backgroundColor: ['#3b82f6', '#8b5cf6', '#ef4444'],
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: false }
+            });
+        }
+
+        function renderTopModelsChart(data) {
+            if (charts.topModels) charts.topModels.destroy();
+            const ctx = document.getElementById('topModelsChart').getContext('2d');
+            charts.topModels = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: data.map(d => d.model),
+                    datasets: [{
+                        label: 'Searches',
+                        data: data.map(d => d.count),
+                        backgroundColor: '#3b82f6',
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { y: { beginAtZero: true } }
+                }
+            });
+        }
+    </script>
+</body>
+
+</html>
