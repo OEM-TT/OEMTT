@@ -5,7 +5,7 @@
   "main": "dist/server.js",
   "scripts": {
     "dev": "nodemon --exec tsx src/server.ts",
-    "build": "tsc && tsc-alias",
+    "build": "tsc && tsc-alias && mkdir -p dist/public && cp -r src/public/* dist/public/",
     "start": "node dist/server.js",
     "test": "jest",
     "test:watch": "jest --watch",
