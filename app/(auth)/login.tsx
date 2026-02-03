@@ -1,6 +1,5 @@
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
 import { useRouter } from 'expo-router';
@@ -115,13 +114,8 @@ export default function LoginScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardView}
       >
-        {/* Header Gradient */}
-        <LinearGradient
-          colors={[theme.colors.primary, theme.colors.accent]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.header}
-        >
+        {/* Header */}
+        <View style={[styles.header, { backgroundColor: theme.colors.primary }]}>
           <View style={styles.logoContainer}>
             <View style={[styles.logo, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
               <Ionicons name="shield-checkmark" size={48} color={theme.colors.white} />
@@ -129,7 +123,7 @@ export default function LoginScreen() {
             <Text style={styles.appName}>OEM TechTalk</Text>
             <Text style={styles.tagline}>Professional Technical Documentation</Text>
           </View>
-        </LinearGradient>
+        </View>
 
         {/* Content */}
         <View style={styles.content}>
@@ -183,16 +177,21 @@ export default function LoginScreen() {
 
           {/* Sign In Button */}
           <TouchableOpacity
-            style={[styles.button, loading && styles.buttonDisabled]}
+            style={[
+              styles.button,
+              {
+                backgroundColor: loading || !email
+                  ? theme.colors.disabled
+                  : devMode
+                  ? theme.colors.warning
+                  : theme.colors.primary,
+              },
+              loading && styles.buttonDisabled,
+            ]}
             onPress={devMode ? handleDevModeLogin : handleSendMagicLink}
             disabled={loading || !email}
           >
-            <LinearGradient
-              colors={loading || !email ? [theme.colors.disabled, theme.colors.disabled] : devMode ? [theme.colors.warning, theme.colors.warningDark] : [theme.colors.primary, theme.colors.primaryDark]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.buttonGradient}
-            >
+            <View style={styles.buttonContent}>
               {loading ? (
                 <Text style={styles.buttonText}>Processing...</Text>
               ) : devMode ? (
@@ -207,7 +206,7 @@ export default function LoginScreen() {
                   <Ionicons name="arrow-forward" size={20} color={theme.colors.white} />
                 </>
               )}
-            </LinearGradient>
+            </View>
           </TouchableOpacity>
 
           {/* Info */}
@@ -310,7 +309,7 @@ const createStyles = (theme: any) => StyleSheet.create({
   buttonDisabled: {
     opacity: 0.6,
   },
-  buttonGradient: {
+  buttonContent: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',

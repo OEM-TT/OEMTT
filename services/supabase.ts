@@ -32,3 +32,18 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     storageKey: 'supabase.auth.token',
   },
 });
+
+/**
+ * Get public URL for a manual PDF from storage path
+ * Handles both old format (carrier-19xr-123.pdf) and new format (carrier/19XR/19XR.pdf)
+ */
+export function getManualPublicUrl(storagePath: string): string {
+  // If it's already a full URL, return as-is
+  if (storagePath.startsWith('http://') || storagePath.startsWith('https://')) {
+    return storagePath;
+  }
+
+  // Get public URL from Supabase storage
+  const { data } = supabase.storage.from('manuals').getPublicUrl(storagePath);
+  return data.publicUrl;
+}

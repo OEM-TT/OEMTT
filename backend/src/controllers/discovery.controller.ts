@@ -116,6 +116,8 @@ export async function searchWithDiscovery(req: AuthRequest, res: Response) {
                     type: m.manualType,
                     pageCount: m.pageCount,
                     sectionsCount: m._count.sections,
+                    sourceUrl: m.sourceUrl,
+                    storagePath: m.storagePath,
                     model: {
                         id: m.model.id,
                         modelNumber: m.model.modelNumber,

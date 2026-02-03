@@ -12,6 +12,9 @@
 import { estimateTokens } from '@/config/openai';
 import { PDFPage } from './pdfProcessor';
 
+// Hard token limit for OpenAI embeddings (8192 - buffer)
+const MAX_EMBEDDING_TOKENS = 8000;
+
 export type SectionType =
   | 'troubleshooting'
   | 'specifications'
@@ -385,31 +388,74 @@ export function chunkPDFPages(pages: PDFPage[], targetTokens: number = 750): Tex
       for (const textChunk of textChunks) {
         const chunkTokens = estimateTokens(textChunk);
 
-        // Extract title from first line or use existing
-        const firstLine = textChunk.split('\n')[0].trim();
-        const title = firstLine.length > 5 && firstLine.length < 100
-          ? firstLine
-          : sectionTitle;
+        // CRITICAL: If chunk exceeds limit, split it intelligently
+        if (chunkTokens > MAX_EMBEDDING_TOKENS) {
+          console.warn(`   ⚠️  Chunk exceeds ${MAX_EMBEDDING_TOKENS} tokens (${chunkTokens}), splitting intelligently...`);
+          
+          // Try splitting by REF markers (for tables)
+          let subChunks: string[] = [];
+          if (textChunk.includes('[REF:')) {
+            subChunks = splitByTableReferences(textChunk, MAX_EMBEDDING_TOKENS * 0.9);
+          } else {
+            // Fallback to paragraph splitting
+            subChunks = splitByParagraph(textChunk, MAX_EMBEDDING_TOKENS * 0.9);
+          }
 
-        chunks.push({
-          content: textChunk,
-          sectionTitle: title,
-          sectionType: classifySectionType(title, textChunk),
-          pageReference: currentPages.length === 1
-            ? `Page ${currentPages[0]}`
-            : `Pages ${currentPages[0]}-${currentPages[currentPages.length - 1]}`,
-          pageNumbers: [...currentPages],
-          metadata: {
-            keywords: extractKeywords(textChunk),
-            modelNumbers: extractModelNumbers(textChunk),
-            partNumbers: extractPartNumbers(textChunk),
-          },
-          tokenCount: chunkTokens,
-        });
+          // Process each sub-chunk
+          for (const subChunk of subChunks) {
+            let finalSubChunk = subChunk;
+            let finalTokens = estimateTokens(subChunk);
 
-        // Update section title if we found a header
-        if (title !== sectionTitle) {
-          sectionTitle = title;
+            // Last resort: truncate if still too large
+            if (finalTokens > MAX_EMBEDDING_TOKENS) {
+              console.warn(`   ⚠️  Sub-chunk still ${finalTokens} tokens, truncating...`);
+              finalSubChunk = subChunk.substring(0, MAX_EMBEDDING_TOKENS * 4);
+              finalTokens = estimateTokens(finalSubChunk);
+            }
+
+            const firstLine = finalSubChunk.split('\n')[0].trim();
+            const title = firstLine.length > 5 && firstLine.length < 100
+              ? firstLine
+              : sectionTitle;
+
+            chunks.push({
+              content: finalSubChunk,
+              sectionTitle: title,
+              sectionType: classifySectionType(title, finalSubChunk),
+              pageReference: currentPages.length === 1
+                ? `Page ${currentPages[0]}`
+                : `Pages ${currentPages[0]}-${currentPages[currentPages.length - 1]}`,
+              pageNumbers: [...currentPages],
+              metadata: {
+                keywords: extractKeywords(finalSubChunk),
+                modelNumbers: extractModelNumbers(finalSubChunk),
+                partNumbers: extractPartNumbers(finalSubChunk),
+              },
+              tokenCount: finalTokens,
+            });
+          }
+        } else {
+          // Chunk is fine as-is
+          const firstLine = textChunk.split('\n')[0].trim();
+          const title = firstLine.length > 5 && firstLine.length < 100
+            ? firstLine
+            : sectionTitle;
+
+          chunks.push({
+            content: textChunk,
+            sectionTitle: title,
+            sectionType: classifySectionType(title, textChunk),
+            pageReference: currentPages.length === 1
+              ? `Page ${currentPages[0]}`
+              : `Pages ${currentPages[0]}-${currentPages[currentPages.length - 1]}`,
+            pageNumbers: [...currentPages],
+            metadata: {
+              keywords: extractKeywords(textChunk),
+              modelNumbers: extractModelNumbers(textChunk),
+              partNumbers: extractPartNumbers(textChunk),
+            },
+            tokenCount: chunkTokens,
+          });
         }
       }
 
@@ -424,25 +470,71 @@ export function chunkPDFPages(pages: PDFPage[], targetTokens: number = 750): Tex
     const textChunks = splitBySection(currentSection, targetTokens);
 
     for (const textChunk of textChunks) {
-      chunks.push({
-        content: textChunk,
-        sectionTitle,
-        sectionType: classifySectionType(sectionTitle, textChunk),
-        pageReference: currentPages.length === 1
-          ? `Page ${currentPages[0]}`
-          : `Pages ${currentPages[0]}-${currentPages[currentPages.length - 1]}`,
-        pageNumbers: [...currentPages],
-        metadata: {
-          keywords: extractKeywords(textChunk),
-          modelNumbers: extractModelNumbers(textChunk),
-          partNumbers: extractPartNumbers(textChunk),
-        },
-        tokenCount: estimateTokens(textChunk),
-      });
+      const chunkTokens = estimateTokens(textChunk);
+
+      // CRITICAL: If chunk exceeds limit, split it intelligently
+      if (chunkTokens > MAX_EMBEDDING_TOKENS) {
+        console.warn(`   ⚠️  Final chunk exceeds ${MAX_EMBEDDING_TOKENS} tokens (${chunkTokens}), splitting intelligently...`);
+        
+        // Try splitting by REF markers (for tables)
+        let subChunks: string[] = [];
+        if (textChunk.includes('[REF:')) {
+          subChunks = splitByTableReferences(textChunk, MAX_EMBEDDING_TOKENS * 0.9);
+        } else {
+          // Fallback to paragraph splitting
+          subChunks = splitByParagraph(textChunk, MAX_EMBEDDING_TOKENS * 0.9);
+        }
+
+        // Process each sub-chunk
+        for (const subChunk of subChunks) {
+          let finalSubChunk = subChunk;
+          let finalTokens = estimateTokens(subChunk);
+
+          // Last resort: truncate if still too large
+          if (finalTokens > MAX_EMBEDDING_TOKENS) {
+            console.warn(`   ⚠️  Sub-chunk still ${finalTokens} tokens, truncating...`);
+            finalSubChunk = subChunk.substring(0, MAX_EMBEDDING_TOKENS * 4);
+            finalTokens = estimateTokens(finalSubChunk);
+          }
+
+          chunks.push({
+            content: finalSubChunk,
+            sectionTitle,
+            sectionType: classifySectionType(sectionTitle, finalSubChunk),
+            pageReference: currentPages.length === 1
+              ? `Page ${currentPages[0]}`
+              : `Pages ${currentPages[0]}-${currentPages[currentPages.length - 1]}`,
+            pageNumbers: [...currentPages],
+            metadata: {
+              keywords: extractKeywords(finalSubChunk),
+              modelNumbers: extractModelNumbers(finalSubChunk),
+              partNumbers: extractPartNumbers(finalSubChunk),
+            },
+            tokenCount: finalTokens,
+          });
+        }
+      } else {
+        // Chunk is fine as-is
+        chunks.push({
+          content: textChunk,
+          sectionTitle,
+          sectionType: classifySectionType(sectionTitle, textChunk),
+          pageReference: currentPages.length === 1
+            ? `Page ${currentPages[0]}`
+            : `Pages ${currentPages[0]}-${currentPages[currentPages.length - 1]}`,
+          pageNumbers: [...currentPages],
+          metadata: {
+            keywords: extractKeywords(textChunk),
+            modelNumbers: extractModelNumbers(textChunk),
+            partNumbers: extractPartNumbers(textChunk),
+          },
+          tokenCount: chunkTokens,
+        });
+      }
     }
   }
 
-  console.log(`✂️  Created ${chunks.length} chunks (avg ${Math.round(chunks.reduce((sum, c) => sum + c.tokenCount, 0) / chunks.length)} tokens/chunk)`);
+  console.log(`✂️  Created ${chunks.length} chunks (avg ${Math.round(chunks.reduce((sum, c) => sum + c.tokenCount, 0) / chunks.length)} tokens/chunk, max ${MAX_EMBEDDING_TOKENS} tokens)`);
 
   return chunks;
 }
