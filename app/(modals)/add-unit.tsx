@@ -1,4 +1,4 @@
-import { useEffect, useCallback } from 'react';
+import { useEffect } from 'react';
 import {
   View,
   Text,
@@ -15,7 +15,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
-import { useRouter, useFocusEffect } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
 import { discoveryService } from '@/services/api/discovery.service';
 import { savedUnitsService } from '@/services/api/savedUnits.service';
@@ -28,7 +28,16 @@ type Step = 'search' | 'select-model' | 'select-manual' | 'details';
 export default function AddUnitModal() {
   const { theme, isDark } = useTheme();
   const router = useRouter();
+  const params = useLocalSearchParams<{
+    siteName?: string;
+    mode?: string;
+    manualConfirmed?: string;
+    manualData?: string;
+  }>();
   const styles = createStyles(theme);
+
+  // Check if we're adding to an existing site
+  const isAddingToSite = params.mode === 'add-to-site';
 
   // State
   const [step, setStep] = useState<Step>('search');
@@ -43,7 +52,6 @@ export default function AddUnitModal() {
   const [selectedModel, setSelectedModel] = useState<any>(null);
   const [selectedModelForManuals, setSelectedModelForManuals] = useState<any>(null); // For showing manuals
   const [discoveryMessage, setDiscoveryMessage] = useState<string | null>(null);
-  const [pendingManualSelection, setPendingManualSelection] = useState<any>(null); // Track manual preview
 
   // Unit details
   const [nickname, setNickname] = useState('');
@@ -51,12 +59,28 @@ export default function AddUnitModal() {
   const [location, setLocation] = useState('');
   const [notes, setNotes] = useState('');
 
+  // Existing sites for quick selection
+  const [existingSites, setExistingSites] = useState<string[]>([]);
+  const [loadingExistingSites, setLoadingExistingSites] = useState(true);
+
   // Load OEMs on mount
   useEffect(() => {
     async function loadOems() {
       try {
         const data = await oemsService.getAll('HVAC');
-        setOems(data);
+
+        // ⚠️ TEMPORARY FILTER: Only showing Carrier for now
+        // TO REMOVE THIS FILTER: 
+        // 1. Replace the next line with: setOems(data);
+        // 2. Remove the auto-select line below
+        const filteredOems = data.filter(oem => oem.name === 'Carrier');
+        setOems(filteredOems);
+
+        // Auto-select Carrier since it's the only option
+        if (filteredOems.length > 0) {
+          setSelectedOem(filteredOems[0].id);
+        }
+
       } catch (error) {
         console.error('Failed to load OEMs:', error);
         Alert.alert('Error', 'Failed to load manufacturers. Please try again.');
@@ -67,6 +91,30 @@ export default function AddUnitModal() {
     loadOems();
   }, []);
 
+  // Load existing sites on mount
+  useEffect(() => {
+    async function loadExistingSites() {
+      try {
+        const units = await savedUnitsService.getAll();
+        // Extract unique nicknames (site names)
+        const uniqueSites = [...new Set(units.map(unit => unit.nickname))];
+        setExistingSites(uniqueSites);
+      } catch (error) {
+        console.error('Failed to load existing sites:', error);
+      } finally {
+        setLoadingExistingSites(false);
+      }
+    }
+    loadExistingSites();
+  }, []);
+
+  // Pre-fill site name if provided (adding model to existing site)
+  useEffect(() => {
+    if (params.siteName && typeof params.siteName === 'string') {
+      setNickname(params.siteName);
+    }
+  }, [params.siteName]);
+
   // useEffect(() => {
   //   if (selectedModel) {
   //     const oemName = selectedModel.productLine?.oem?.name || '';
@@ -75,16 +123,27 @@ export default function AddUnitModal() {
   //   }
   // }, [selectedModel]);
 
-  // Handle return from PDF preview - show details form
-  useFocusEffect(
-    useCallback(() => {
-      if (pendingManualSelection) {
-        // User returned from PDF preview, proceed to details
-        handleSelectManual(pendingManualSelection);
-        setPendingManualSelection(null);
+  // Check if user confirmed manual selection from PDF viewer
+  useEffect(() => {
+    if (params.manualConfirmed === 'true' && params.manualData) {
+      try {
+        const manual = JSON.parse(params.manualData as string);
+        console.log('✅ Manual confirmed by user:', manual.model.modelNumber);
+
+        if (isAddingToSite) {
+          // Adding to existing site - save directly
+          console.log('💾 Saving to existing site:', params.siteName);
+          handleSaveToExistingSite(manual);
+        } else {
+          // Creating new site - show details form
+          console.log('📝 Showing details form for new site');
+          handleSelectManual(manual);
+        }
+      } catch (error) {
+        console.error('Failed to parse manual data:', error);
       }
-    }, [pendingManualSelection])
-  );
+    }
+  }, [params.manualConfirmed, params.manualData]);
 
   // Search for models with auto-discovery
   const handleSearch = async () => {
@@ -220,7 +279,43 @@ export default function AddUnitModal() {
     setStep('details');
   };
 
-  // Save the unit
+  // Save model to existing site (skip details form)
+  const handleSaveToExistingSite = async (manual: any) => {
+    if (!params.siteName) {
+      Alert.alert('Error', 'Site name is missing.');
+      return;
+    }
+
+    setLoading(true);
+    setLoadingMessage('Adding model to site...');
+
+    try {
+      await savedUnitsService.create({
+        modelId: manual.model.id,
+        nickname: params.siteName, // Use the existing site name
+        // No serial, location, or notes - just add the model
+      });
+
+      setLoading(false);
+      setLoadingMessage('');
+
+      // Navigate back to site details (which will auto-refresh via useFocusEffect)
+      console.log('✅ Model added to site! Navigating back to site details...');
+      router.back(); // Close add-unit modal
+
+      // Show success message
+      setTimeout(() => {
+        Alert.alert('Success', `${manual.model.modelNumber} added to ${params.siteName}!`);
+      }, 300);
+    } catch (error: any) {
+      console.error('Save error:', error);
+      Alert.alert('Save Error', error?.response?.data?.message || 'Failed to add model. Please try again.');
+      setLoading(false);
+      setLoadingMessage('');
+    }
+  };
+
+  // Save the unit (new site)
   const handleSave = async () => {
     if (!nickname.trim()) {
       Alert.alert('Required Field', 'Please enter a nickname for this unit.');
@@ -237,16 +332,17 @@ export default function AddUnitModal() {
         notes: notes.trim() || undefined,
       });
 
-      Alert.alert('Success', 'Unit saved successfully!', [
-        {
-          text: 'OK',
-          onPress: () => router.back(),
-        },
-      ]);
+      // Close all modals and return to library
+      console.log('✅ New site saved! Closing all modals and returning to library...');
+      router.dismissAll();
+
+      // Show success message after returning to library
+      setTimeout(() => {
+        Alert.alert('Success', `Site "${nickname.trim()}" created successfully!`);
+      }, 500);
     } catch (error: any) {
       console.error('Save error:', error);
       Alert.alert('Save Error', error?.response?.data?.message || 'Failed to save unit. Please try again.');
-    } finally {
       setLoading(false);
     }
   };
@@ -458,16 +554,18 @@ export default function AddUnitModal() {
                   const pdfPath = manual.sourceUrl || manual.storagePath;
                   const publicUrl = getManualPublicUrl(pdfPath);
 
-                  // Store manual selection for when user returns from preview
-                  setPendingManualSelection(manual);
-
-                  // Navigate to PDF viewer in preview mode
+                  // Navigate to PDF viewer in preview mode with appropriate button text
+                  // Pass manual data as serialized JSON so we can recover it if button is pressed
                   router.push({
                     pathname: '/(modals)/pdf-viewer',
                     params: {
                       url: publicUrl,
                       title: manual.title || 'Manual',
                       mode: 'preview-to-save',
+                      buttonText: isAddingToSite ? 'Add this model to my site' : 'Continue to Details',
+                      returnTo: '/(modals)/add-unit', // Where to go back to
+                      manualData: JSON.stringify(manual), // Pass manual data for confirmation
+                      siteName: params.siteName || '', // Pass through site name if adding to existing site
                     },
                   });
                 } else {
@@ -519,71 +617,146 @@ export default function AddUnitModal() {
       </Text> */}
 
       <ScrollView style={styles.formScroll} showsVerticalScrollIndicator={false}>
-        <View style={styles.formGroup}>
-          <Text style={[styles.label, { color: theme.colors.text }]}>
-            Nickname <Text style={{ color: theme.colors.danger }}>*</Text>
-          </Text>
-          <TextInput
-            style={[styles.input, { color: theme.colors.text, backgroundColor: isDark ? theme.colors.backgroundSecondary : theme.colors.white, borderColor: theme.colors.border }]}
-            placeholder="e.g. Johnson Residence"
-            placeholderTextColor={theme.colors.textTertiary}
-            value={nickname}
-            onChangeText={setNickname}
-            autoFocus
-          />
-        </View>
+        {/* Check if adding to existing site */}
+        {nickname && existingSites.includes(nickname) ? (
+          <>
+            {/* Existing Site Card */}
+            <View style={[styles.existingSiteCard, { backgroundColor: isDark ? theme.colors.backgroundSecondary : theme.colors.white }]}>
+              <View style={[styles.existingSiteIconContainer, { backgroundColor: theme.colors.primary + '20' }]}>
+                <Ionicons name="business" size={32} color={theme.colors.primary} />
+              </View>
+              <Text style={[styles.existingSiteCardTitle, { color: theme.colors.text }]}>Adding to Existing Site</Text>
+              <Text style={[styles.existingSiteCardSite, { color: theme.colors.primary }]}>{nickname}</Text>
+              <Text style={[styles.existingSiteCardDescription, { color: theme.colors.textSecondary }]}>
+                This unit will be added to your existing site
+              </Text>
 
-        <View style={styles.formGroup}>
-          <Text style={[styles.label, { color: theme.colors.text }]}>Serial Number</Text>
-          <TextInput
-            style={[styles.input, { color: theme.colors.text, backgroundColor: isDark ? theme.colors.backgroundSecondary : theme.colors.white, borderColor: theme.colors.border }]}
-            placeholder=""
-            placeholderTextColor={theme.colors.textTertiary}
-            value={serialNumber}
-            onChangeText={setSerialNumber}
-            autoCapitalize="characters"
-          />
-        </View>
+              <TouchableOpacity
+                style={[styles.changeSiteButton, { borderColor: theme.colors.border }]}
+                onPress={() => setNickname('')}
+              >
+                <Ionicons name="swap-horizontal" size={18} color={theme.colors.textSecondary} />
+                <Text style={[styles.changeSiteButtonText, { color: theme.colors.textSecondary }]}>
+                  Change Site or Create New
+                </Text>
+              </TouchableOpacity>
+            </View>
 
-        <View style={styles.formGroup}>
-          <Text style={[styles.label, { color: theme.colors.text }]}>Location</Text>
-          <TextInput
-            style={[styles.input, { color: theme.colors.text, backgroundColor: isDark ? theme.colors.backgroundSecondary : theme.colors.white, borderColor: theme.colors.border }]}
-            placeholder="e.g. Main House, Basement"
-            placeholderTextColor={theme.colors.textTertiary}
-            value={location}
-            onChangeText={setLocation}
-          />
-        </View>
+            <TouchableOpacity
+              style={[styles.primaryButton, { backgroundColor: theme.colors.primary, marginTop: theme.spacing.xl }]}
+              onPress={handleSave}
+              disabled={loading}
+            >
+              {loading ? (
+                <ActivityIndicator color={theme.colors.white} />
+              ) : (
+                <>
+                  <Text style={styles.primaryButtonText}>Add to {nickname}</Text>
+                  <Ionicons name="checkmark" size={20} color={theme.colors.white} />
+                </>
+              )}
+            </TouchableOpacity>
+          </>
+        ) : (
+          <>
+            {/* Add to Existing Site Option */}
+            {!loadingExistingSites && existingSites.length > 0 && (
+              <View style={styles.formGroup}>
+                <Text style={[styles.label, { color: theme.colors.text }]}>Quick Add to Existing Site</Text>
+                <TouchableOpacity
+                  style={[styles.existingSiteButton, { backgroundColor: isDark ? theme.colors.backgroundSecondary : theme.colors.white, borderColor: theme.colors.border }]}
+                  onPress={() => {
+                    const siteButtons = [
+                      ...existingSites.map(site => ({
+                        text: site,
+                        onPress: () => setNickname(site),
+                      })),
+                      { text: 'Cancel', style: 'cancel' as const },
+                    ];
+                    Alert.alert(
+                      'Select Existing Site',
+                      'Choose a site to add this unit to',
+                      siteButtons
+                    );
+                  }}
+                >
+                  <Ionicons name="folder-open-outline" size={20} color={theme.colors.textSecondary} />
+                  <Text style={[styles.existingSiteButtonText, { color: theme.colors.textSecondary }]}>
+                    Select from {existingSites.length} existing {existingSites.length === 1 ? 'site' : 'sites'}
+                  </Text>
+                  <Ionicons name="chevron-down" size={20} color={theme.colors.textSecondary} />
+                </TouchableOpacity>
+              </View>
+            )}
 
-        <View style={styles.formGroup}>
-          <Text style={[styles.label, { color: theme.colors.text }]}>Notes</Text>
-          <TextInput
-            style={[styles.textArea, { color: theme.colors.text, backgroundColor: isDark ? theme.colors.backgroundSecondary : theme.colors.white, borderColor: theme.colors.border }]}
-            placeholder="Add any notes about this unit..."
-            placeholderTextColor={theme.colors.textTertiary}
-            value={notes}
-            onChangeText={setNotes}
-            multiline
-            numberOfLines={4}
-            textAlignVertical="top"
-          />
-        </View>
+            {/* New Site Form */}
+            <View style={styles.formGroup}>
+              <Text style={[styles.label, { color: theme.colors.text }]}>
+                Nickname <Text style={{ color: theme.colors.danger }}>*</Text>
+              </Text>
+              <TextInput
+                style={[styles.input, { color: theme.colors.text, backgroundColor: isDark ? theme.colors.backgroundSecondary : theme.colors.white, borderColor: theme.colors.border }]}
+                placeholder="e.g. Johnson Residence"
+                placeholderTextColor={theme.colors.textTertiary}
+                value={nickname}
+                onChangeText={setNickname}
+                autoFocus
+              />
+            </View>
 
-        <TouchableOpacity
-          style={[styles.primaryButton, { backgroundColor: theme.colors.primary }]}
-          onPress={handleSave}
-          disabled={loading || !nickname.trim()}
-        >
-          {loading ? (
-            <ActivityIndicator color={theme.colors.white} />
-          ) : (
-            <>
-              <Text style={styles.primaryButtonText}>Save Unit</Text>
-              <Ionicons name="checkmark" size={20} color={theme.colors.white} />
-            </>
-          )}
-        </TouchableOpacity>
+            <View style={styles.formGroup}>
+              <Text style={[styles.label, { color: theme.colors.text }]}>Serial Number</Text>
+              <TextInput
+                style={[styles.input, { color: theme.colors.text, backgroundColor: isDark ? theme.colors.backgroundSecondary : theme.colors.white, borderColor: theme.colors.border }]}
+                placeholder=""
+                placeholderTextColor={theme.colors.textTertiary}
+                value={serialNumber}
+                onChangeText={setSerialNumber}
+                autoCapitalize="characters"
+              />
+            </View>
+
+            <View style={styles.formGroup}>
+              <Text style={[styles.label, { color: theme.colors.text }]}>Location</Text>
+              <TextInput
+                style={[styles.input, { color: theme.colors.text, backgroundColor: isDark ? theme.colors.backgroundSecondary : theme.colors.white, borderColor: theme.colors.border }]}
+                placeholder="e.g. Main House, Basement"
+                placeholderTextColor={theme.colors.textTertiary}
+                value={location}
+                onChangeText={setLocation}
+              />
+            </View>
+
+            <View style={styles.formGroup}>
+              <Text style={[styles.label, { color: theme.colors.text }]}>Notes</Text>
+              <TextInput
+                style={[styles.textArea, { color: theme.colors.text, backgroundColor: isDark ? theme.colors.backgroundSecondary : theme.colors.white, borderColor: theme.colors.border }]}
+                placeholder="Add any notes about this unit..."
+                placeholderTextColor={theme.colors.textTertiary}
+                value={notes}
+                onChangeText={setNotes}
+                multiline
+                numberOfLines={4}
+                textAlignVertical="top"
+              />
+            </View>
+
+            <TouchableOpacity
+              style={[styles.primaryButton, { backgroundColor: theme.colors.primary }]}
+              onPress={handleSave}
+              disabled={loading || !nickname.trim()}
+            >
+              {loading ? (
+                <ActivityIndicator color={theme.colors.white} />
+              ) : (
+                <>
+                  <Text style={styles.primaryButtonText}>Save Unit</Text>
+                  <Ionicons name="checkmark" size={20} color={theme.colors.white} />
+                </>
+              )}
+            </TouchableOpacity>
+          </>
+        )}
       </ScrollView>
     </>
   );
@@ -801,6 +974,62 @@ const createStyles = (theme: any) =>
       borderWidth: 1,
       fontSize: 16,
       minHeight: 100,
+    },
+    existingSiteButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      padding: theme.spacing.md,
+      borderRadius: theme.borderRadius.lg,
+      borderWidth: 1,
+      gap: theme.spacing.sm,
+    },
+    existingSiteButtonText: {
+      flex: 1,
+      fontSize: 15,
+      fontWeight: '500',
+    },
+    existingSiteCard: {
+      padding: theme.spacing.xl,
+      borderRadius: theme.borderRadius.xl,
+      alignItems: 'center',
+      marginBottom: theme.spacing.md,
+      ...theme.shadows.md,
+    },
+    existingSiteIconContainer: {
+      width: 64,
+      height: 64,
+      borderRadius: 32,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginBottom: theme.spacing.md,
+    },
+    existingSiteCardTitle: {
+      fontSize: 16,
+      fontWeight: '600',
+      marginBottom: theme.spacing.xs,
+    },
+    existingSiteCardSite: {
+      fontSize: 22,
+      fontWeight: '700',
+      marginBottom: theme.spacing.sm,
+    },
+    existingSiteCardDescription: {
+      fontSize: 14,
+      textAlign: 'center',
+      marginBottom: theme.spacing.lg,
+    },
+    changeSiteButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      padding: theme.spacing.sm,
+      paddingHorizontal: theme.spacing.md,
+      borderRadius: theme.borderRadius.lg,
+      borderWidth: 1,
+      gap: theme.spacing.xs,
+    },
+    changeSiteButtonText: {
+      fontSize: 14,
+      fontWeight: '500',
     },
     loadingOverlay: {
       flex: 1,
