@@ -23,6 +23,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { savedUnitsService, SavedUnitWithDetails } from '@/services/api/savedUnits.service';
 import { modelsService } from '@/services/api/models.service';
 import * as chatService from '@/services/api/chat.service';
+import { getManualPublicUrl } from '@/services/supabase';
 
 interface Manual {
   id: string;
@@ -156,10 +157,12 @@ export default function UnitDetailsScreen() {
 
   const handleViewManual = (manual: Manual) => {
     if (manual.sourceUrl) {
+      // Convert storage path to full public URL
+      const publicUrl = getManualPublicUrl(manual.sourceUrl);
       router.push({
         pathname: '/(modals)/pdf-viewer',
         params: {
-          url: manual.sourceUrl,
+          url: publicUrl,
           title: manual.title || 'Manual',
         },
       });

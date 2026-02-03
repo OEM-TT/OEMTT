@@ -1,19 +1,21 @@
-import { View, StyleSheet, ActivityIndicator, Text, Share, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, ActivityIndicator, Text, Share, TouchableOpacity, Dimensions, Platform } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { WebView } from 'react-native-webview';
+import Pdf from 'react-native-pdf';
 import { Ionicons } from '@expo/vector-icons';
 
 export default function PdfViewerScreen() {
-    const params = useLocalSearchParams<{ url: string; title?: string }>();
+    const params = useLocalSearchParams<{ url: string; title?: string; mode?: string; manualData?: string }>();
     const router = useRouter();
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(0);
 
     const pdfUrl = typeof params.url === 'string' ? params.url : '';
     const title = typeof params.title === 'string' ? params.title : 'Manual';
-
-    // Use Google Docs PDF viewer for better mobile support
-    const viewerUrl = `https://docs.google.com/viewer?url=${encodeURIComponent(pdfUrl)}&embedded=true`;
+    const mode = typeof params.mode === 'string' ? params.mode : 'view';
+    const isPreviewMode = mode === 'preview-to-save';
 
     const handleShare = async () => {
         try {
@@ -26,16 +28,27 @@ export default function PdfViewerScreen() {
         }
     };
 
+    const handleSaveManual = () => {
+        // Navigate back to add-unit with confirmation to proceed to details
+        router.back();
+        // The add-unit modal should now show the details form
+    };
+
+    const source = {
+        uri: pdfUrl,
+        cache: true,
+    };
+
     return (
         <View style={styles.container}>
             <Stack.Screen
                 options={{
                     title: title,
-                    headerRight: () => (
+                    headerRight: () => !isPreviewMode ? (
                         <TouchableOpacity onPress={handleShare} style={styles.shareButton}>
                             <Ionicons name="share-outline" size={24} color="#F1F5F9" />
                         </TouchableOpacity>
-                    ),
+                    ) : null,
                 }}
             />
 
@@ -43,23 +56,75 @@ export default function PdfViewerScreen() {
                 <View style={styles.loadingContainer}>
                     <ActivityIndicator size="large" color="#A78BFA" />
                     <Text style={styles.loadingText}>Loading PDF...</Text>
+                    <Text style={styles.loadingSubtext}>This may take a moment for large files</Text>
                 </View>
             )}
 
-            <WebView
-                source={{ uri: viewerUrl }}
-                style={styles.webview}
-                onLoadStart={() => setLoading(true)}
-                onLoadEnd={() => setLoading(false)}
-                onError={(error) => {
-                    console.error('WebView error:', error);
+            {error && (
+                <View style={styles.errorContainer}>
+                    <Ionicons name="alert-circle" size={48} color="#EF4444" />
+                    <Text style={styles.errorText}>{error}</Text>
+                    <TouchableOpacity
+                        style={styles.retryButton}
+                        onPress={() => {
+                            setError(null);
+                            setLoading(true);
+                        }}
+                    >
+                        <Text style={styles.retryButtonText}>Retry</Text>
+                    </TouchableOpacity>
+                </View>
+            )}
+
+            <Pdf
+                trustAllCerts={false}
+                source={source}
+                style={styles.pdf}
+                onLoadComplete={(numberOfPages) => {
+                    console.log(`PDF loaded with ${numberOfPages} pages`);
+                    setTotalPages(numberOfPages);
                     setLoading(false);
+                    setError(null);
                 }}
-                startInLoadingState={true}
-                scalesPageToFit={true}
-                javaScriptEnabled={true}
-                domStorageEnabled={true}
+                onPageChanged={(page) => {
+                    setCurrentPage(page);
+                }}
+                onError={(error) => {
+                    console.error('PDF error:', error);
+                    setLoading(false);
+                    setError('Failed to load PDF. Please try again.');
+                }}
+                onLoadProgress={(percent) => {
+                    console.log(`Loading: ${(percent * 100).toFixed(0)}%`);
+                }}
+                enablePaging={true}
+                spacing={16}
+                horizontal={false}
+                fitPolicy={0} // 0 = fit width, 1 = fit height, 2 = fit both
             />
+
+            {/* Page Indicator - Only show when loaded and not in error state */}
+            {!loading && !error && totalPages > 0 && (
+                <View style={styles.pageIndicator}>
+                    <Text style={styles.pageIndicatorText}>
+                        Page {currentPage} of {totalPages}
+                    </Text>
+                </View>
+            )}
+
+            {/* Save Manual Bottom Bar - Only show in preview mode */}
+            {isPreviewMode && (
+                <View style={styles.bottomBar}>
+                    <TouchableOpacity
+                        style={styles.saveButton}
+                        onPress={handleSaveManual}
+                        activeOpacity={0.8}
+                    >
+                        <Ionicons name="checkmark-circle" size={24} color="#FFF" />
+                        <Text style={styles.saveButtonText}>Add this model to my site</Text>
+                    </TouchableOpacity>
+                </View>
+            )}
         </View>
     );
 }
@@ -69,8 +134,9 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: '#0F172A',
     },
-    webview: {
+    pdf: {
         flex: 1,
+        width: Dimensions.get('window').width,
         backgroundColor: '#1E293B',
     },
     loadingContainer: {
@@ -88,8 +154,86 @@ const styles = StyleSheet.create({
         marginTop: 16,
         color: '#F1F5F9',
         fontSize: 16,
+        fontWeight: '600',
+    },
+    loadingSubtext: {
+        marginTop: 8,
+        color: '#94A3B8',
+        fontSize: 14,
+    },
+    errorContainer: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: '#0F172A',
+        zIndex: 10,
+        padding: 24,
+    },
+    errorText: {
+        marginTop: 16,
+        color: '#EF4444',
+        fontSize: 16,
+        textAlign: 'center',
+        marginBottom: 24,
+    },
+    retryButton: {
+        backgroundColor: '#A78BFA',
+        paddingHorizontal: 24,
+        paddingVertical: 12,
+        borderRadius: 8,
+    },
+    retryButtonText: {
+        color: '#FFF',
+        fontSize: 16,
+        fontWeight: '600',
+    },
+    pageIndicator: {
+        position: 'absolute',
+        top: Platform.OS === 'ios' ? 60 : 20,
+        right: 20,
+        backgroundColor: 'rgba(15, 23, 42, 0.8)',
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+        borderRadius: 20,
+        borderWidth: 1,
+        borderColor: '#334155',
+    },
+    pageIndicatorText: {
+        color: '#F1F5F9',
+        fontSize: 14,
+        fontWeight: '600',
     },
     shareButton: {
         padding: 8,
+    },
+    bottomBar: {
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        backgroundColor: '#1E293B',
+        borderTopWidth: 1,
+        borderTopColor: '#334155',
+        paddingHorizontal: 20,
+        paddingVertical: 16,
+        paddingBottom: Platform.OS === 'ios' ? 32 : 16, // Extra padding for iOS home indicator
+    },
+    saveButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#A78BFA',
+        borderRadius: 12,
+        paddingVertical: 16,
+        gap: 8,
+    },
+    saveButtonText: {
+        color: '#FFF',
+        fontSize: 18,
+        fontWeight: '600',
     },
 });

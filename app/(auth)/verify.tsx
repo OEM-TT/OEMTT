@@ -1,6 +1,5 @@
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, TextInput, Alert, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
@@ -188,13 +187,13 @@ export default function VerifyScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]} edges={['top']}>
-      <LinearGradient colors={[theme.colors.primary, theme.colors.accent]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.header}>
+      <View style={[styles.header, { backgroundColor: theme.colors.primary }]}>
         <View style={styles.logoContainer}>
           <View style={[styles.logo, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
             {isVerified ? <Ionicons name="checkmark-circle" size={64} color={theme.colors.white} /> : <Ionicons name="mail" size={64} color={theme.colors.white} />}
           </View>
         </View>
-      </LinearGradient>
+      </View>
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: theme.spacing.lg, paddingBottom: 100 }}>
         {isVerified ? (
           <><Text style={[styles.title, { color: theme.colors.success }]}>Verified!</Text><Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>Redirecting...</Text></>

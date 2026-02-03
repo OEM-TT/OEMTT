@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -15,14 +15,15 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
 import { discoveryService } from '@/services/api/discovery.service';
 import { savedUnitsService } from '@/services/api/savedUnits.service';
 import { oemsService } from '@/services/api/oems.service';
 import { OEM } from '@/types';
+import { getManualPublicUrl } from '@/services/supabase';
 
-type Step = 'search' | 'select-model' | 'details';
+type Step = 'search' | 'select-model' | 'select-manual' | 'details';
 
 export default function AddUnitModal() {
   const { theme, isDark } = useTheme();
@@ -40,7 +41,9 @@ export default function AddUnitModal() {
   const [searchResults, setSearchResults] = useState<any>(null);
   const [selectedManual, setSelectedManual] = useState<any>(null);
   const [selectedModel, setSelectedModel] = useState<any>(null);
+  const [selectedModelForManuals, setSelectedModelForManuals] = useState<any>(null); // For showing manuals
   const [discoveryMessage, setDiscoveryMessage] = useState<string | null>(null);
+  const [pendingManualSelection, setPendingManualSelection] = useState<any>(null); // Track manual preview
 
   // Unit details
   const [nickname, setNickname] = useState('');
@@ -64,13 +67,24 @@ export default function AddUnitModal() {
     loadOems();
   }, []);
 
-  useEffect(() => {
-    if (selectedModel) {
-      const oemName = selectedModel.productLine?.oem?.name || '';
-      const modelNum = selectedModel.modelNumber || '';
-      setNickname(`${oemName} ${modelNum}`.trim());
-    }
-  }, [selectedModel]);
+  // useEffect(() => {
+  //   if (selectedModel) {
+  //     const oemName = selectedModel.productLine?.oem?.name || '';
+  //     const modelNum = selectedModel.modelNumber || '';
+  //     setNickname(`${oemName} ${modelNum}`.trim());
+  //   }
+  // }, [selectedModel]);
+
+  // Handle return from PDF preview - show details form
+  useFocusEffect(
+    useCallback(() => {
+      if (pendingManualSelection) {
+        // User returned from PDF preview, proceed to details
+        handleSelectManual(pendingManualSelection);
+        setPendingManualSelection(null);
+      }
+    }, [pendingManualSelection])
+  );
 
   // Search for models with auto-discovery
   const handleSearch = async () => {
@@ -335,10 +349,29 @@ export default function AddUnitModal() {
     </>
   );
 
-  // Render step 2: Select model
+  // Render step 2: Select model (grouped by model, not individual manuals)
   const renderSelectModelStep = () => {
     const manuals = searchResults?.manuals || [];
-    const count = manuals.length;
+
+    // Group manuals by model
+    const modelGroups = manuals.reduce((acc: any, manual: any) => {
+      const modelKey = manual.model.id || manual.model.modelNumber;
+      if (!acc[modelKey]) {
+        acc[modelKey] = {
+          model: manual.model,
+          manuals: [],
+          totalSections: 0,
+          totalPages: 0,
+        };
+      }
+      acc[modelKey].manuals.push(manual);
+      acc[modelKey].totalSections += manual.sectionsCount || 0;
+      acc[modelKey].totalPages += manual.pageCount || 0;
+      return acc;
+    }, {});
+
+    const models = Object.values(modelGroups);
+    const count = models.length;
 
     return (
       <>
@@ -348,10 +381,70 @@ export default function AddUnitModal() {
 
         <Text style={[styles.title, { color: theme.colors.text }]}>Select Your Model</Text>
         <Text style={[styles.description, { color: theme.colors.textSecondary }]}>
-          Found {count} {count === 1 ? 'result' : 'results'}
+          Found {count} {count === 1 ? 'model' : 'models'}
           {discoveryMessage && (
             <Text style={{ color: theme.colors.success }}> ✨ {discoveryMessage}</Text>
           )}
+        </Text>
+
+        <ScrollView style={styles.resultsList} showsVerticalScrollIndicator={false}>
+          {models.map((modelGroup: any) => (
+            <TouchableOpacity
+              key={modelGroup.model.id || modelGroup.model.modelNumber}
+              style={[styles.modelCard, { backgroundColor: isDark ? theme.colors.backgroundSecondary : theme.colors.white }]}
+              onPress={() => {
+                setSelectedModelForManuals(modelGroup);
+                setStep('select-manual');
+              }}
+            >
+              <View style={styles.modelInfo}>
+                <Text style={[styles.modelNumber, { color: theme.colors.text }]}>
+                  {modelGroup.model.modelNumber}
+                </Text>
+                <Text style={[styles.modelMeta, { color: theme.colors.textSecondary }]}>
+                  {modelGroup.model.oem} • {modelGroup.model.productLine}
+                </Text>
+                <View style={styles.modelBadges}>
+                  <View style={[styles.badge, { backgroundColor: theme.colors.success + '15' }]}>
+                    <Ionicons name="document-text" size={12} color={theme.colors.success} />
+                    <Text style={[styles.badgeText, { color: theme.colors.success }]}>
+                      {modelGroup.totalSections} sections • {modelGroup.totalPages} pages
+                    </Text>
+                  </View>
+                  <View style={[styles.badge, { backgroundColor: theme.colors.primary + '15' }]}>
+                    <Text style={[styles.badgeText, { color: theme.colors.primary }]}>
+                      {modelGroup.manuals.length} {modelGroup.manuals.length === 1 ? 'manual' : 'manuals'}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={theme.colors.textTertiary} />
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </>
+    );
+  };
+
+  // Render step 3: Select manual (for the chosen model)
+  const renderSelectManualStep = () => {
+    const manuals = selectedModelForManuals?.manuals || [];
+    const model = selectedModelForManuals?.model;
+
+    return (
+      <>
+        <TouchableOpacity style={styles.backButton} onPress={() => setStep('select-model')}>
+          <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
+        </TouchableOpacity>
+
+        <Text style={[styles.title, { color: theme.colors.text }]}>
+          {model?.modelNumber}
+        </Text>
+        <Text style={[styles.description, { color: theme.colors.textSecondary }]}>
+          {model?.oem} • {model?.productLine}
+        </Text>
+        <Text style={[styles.description, { color: theme.colors.textSecondary, marginTop: 4 }]}>
+          Select a manual to continue
         </Text>
 
         <ScrollView style={styles.resultsList} showsVerticalScrollIndicator={false}>
@@ -359,14 +452,39 @@ export default function AddUnitModal() {
             <TouchableOpacity
               key={manual.id}
               style={[styles.modelCard, { backgroundColor: isDark ? theme.colors.backgroundSecondary : theme.colors.white }]}
-              onPress={() => handleSelectManual(manual)}
+              onPress={() => {
+                // Navigate to PDF viewer for preview before saving
+                if (manual.sourceUrl || manual.storagePath) {
+                  const pdfPath = manual.sourceUrl || manual.storagePath;
+                  const publicUrl = getManualPublicUrl(pdfPath);
+
+                  // Store manual selection for when user returns from preview
+                  setPendingManualSelection(manual);
+
+                  // Navigate to PDF viewer in preview mode
+                  router.push({
+                    pathname: '/(modals)/pdf-viewer',
+                    params: {
+                      url: publicUrl,
+                      title: manual.title || 'Manual',
+                      mode: 'preview-to-save',
+                    },
+                  });
+                } else {
+                  // No PDF available, go straight to details
+                  Alert.alert('No PDF', 'This manual does not have a PDF available for preview.', [
+                    {
+                      text: 'Continue Anyway',
+                      onPress: () => handleSelectManual(manual),
+                    },
+                    { text: 'Cancel', style: 'cancel' },
+                  ]);
+                }
+              }}
             >
               <View style={styles.modelInfo}>
                 <Text style={[styles.modelNumber, { color: theme.colors.text }]}>
-                  {manual.model.modelNumber}
-                </Text>
-                <Text style={[styles.modelMeta, { color: theme.colors.textSecondary }]}>
-                  {manual.model.oem} • {manual.model.productLine}
+                  {manual.title}
                 </Text>
                 <View style={styles.modelBadges}>
                   <View style={[styles.badge, { backgroundColor: theme.colors.success + '15' }]}>
@@ -491,6 +609,7 @@ export default function AddUnitModal() {
         <View style={styles.content}>
           {step === 'search' && renderSearchStep()}
           {step === 'select-model' && renderSelectModelStep()}
+          {step === 'select-manual' && renderSelectManualStep()}
           {step === 'details' && renderDetailsStep()}
         </View>
       </KeyboardAvoidingView>

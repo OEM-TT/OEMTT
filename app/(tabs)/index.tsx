@@ -1,6 +1,5 @@
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Dimensions, StatusBar } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -16,20 +15,15 @@ export default function HomeScreen() {
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
       
-      {/* Gradient Header */}
-      <LinearGradient
-        colors={[theme.colors.primary, theme.colors.accent]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.header}
-      >
+      {/* Header */}
+      <View style={[styles.header, { backgroundColor: theme.colors.primary }]}>
         <SafeAreaView edges={['top']}>
           <View style={styles.headerContent}>
             <Text style={styles.logo}>OEM TechTalk</Text>
             <Text style={styles.tagline}>Professional Technical Documentation</Text>
           </View>
         </SafeAreaView>
-      </LinearGradient>
+      </View>
 
       {/* Main Content */}
       <ScrollView 
@@ -48,15 +42,10 @@ export default function HomeScreen() {
         {/* Action Cards */}
         <View style={styles.actionCards}>
           <TouchableOpacity 
-            style={[styles.actionCard, styles.primaryCard]}
+            style={[styles.actionCard, styles.primaryCard, { backgroundColor: theme.colors.primary }]}
             onPress={() => router.push('/(tabs)/search')}
           >
-            <LinearGradient
-              colors={[theme.colors.primary, theme.colors.primaryDark]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.cardGradient}
-            >
+            <View style={styles.cardContent}>
               <View style={styles.iconContainer}>
                 <Ionicons name="search" size={28} color={theme.colors.white} />
               </View>
@@ -67,19 +56,14 @@ export default function HomeScreen() {
               <View style={styles.cardArrow}>
                 <Ionicons name="arrow-forward" size={20} color={theme.colors.white} />
               </View>
-            </LinearGradient>
+            </View>
           </TouchableOpacity>
 
           <TouchableOpacity 
-            style={[styles.actionCard, styles.secondaryCard]}
+            style={[styles.actionCard, styles.secondaryCard, { backgroundColor: theme.colors.secondary }]}
             onPress={() => router.push('/(tabs)/library')}
           >
-            <LinearGradient
-              colors={[theme.colors.secondary, theme.colors.secondaryDark]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.cardGradient}
-            >
+            <View style={styles.cardContent}>
               <View style={styles.iconContainer}>
                 <Ionicons name="book" size={28} color={theme.colors.white} />
               </View>
@@ -90,7 +74,7 @@ export default function HomeScreen() {
               <View style={styles.cardArrow}>
                 <Ionicons name="arrow-forward" size={20} color={theme.colors.white} />
               </View>
-            </LinearGradient>
+            </View>
           </TouchableOpacity>
         </View>
 
@@ -215,7 +199,7 @@ const createStyles = (theme: any) => StyleSheet.create({
   secondaryCard: {
     height: 180,
   },
-  cardGradient: {
+  cardContent: {
     flex: 1,
     padding: theme.spacing.lg,
     justifyContent: 'space-between',
