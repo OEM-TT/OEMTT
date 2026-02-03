@@ -1,21 +1,34 @@
-import { View, StyleSheet, ActivityIndicator, Text, Share, TouchableOpacity, Dimensions, Platform } from 'react-native';
+import { View, StyleSheet, ActivityIndicator, Text, Share, TouchableOpacity, Dimensions, Platform, Alert } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import Pdf from 'react-native-pdf';
 import { Ionicons } from '@expo/vector-icons';
+import { savedUnitsService } from '@/services/api/savedUnits.service';
 
 export default function PdfViewerScreen() {
-    const params = useLocalSearchParams<{ url: string; title?: string; mode?: string; manualData?: string }>();
+    const params = useLocalSearchParams<{
+        url: string;
+        title?: string;
+        mode?: string;
+        manualData?: string;
+        buttonText?: string;
+        returnTo?: string;
+        siteName?: string;
+    }>();
     const router = useRouter();
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [currentPage, setCurrentPage] = useState(1);
     const [totalPages, setTotalPages] = useState(0);
+    const [saving, setSaving] = useState(false);
 
     const pdfUrl = typeof params.url === 'string' ? params.url : '';
     const title = typeof params.title === 'string' ? params.title : 'Manual';
     const mode = typeof params.mode === 'string' ? params.mode : 'view';
+    const buttonText = typeof params.buttonText === 'string' ? params.buttonText : 'Continue';
     const isPreviewMode = mode === 'preview-to-save';
+    const siteName = typeof params.siteName === 'string' ? params.siteName : '';
+    const isAddingToSite = !!siteName;
 
     const handleShare = async () => {
         try {
@@ -28,10 +41,52 @@ export default function PdfViewerScreen() {
         }
     };
 
-    const handleSaveManual = () => {
-        // Navigate back to add-unit with confirmation to proceed to details
-        router.back();
-        // The add-unit modal should now show the details form
+    const handleSaveManual = async () => {
+        console.log('🔘 Save button pressed - confirming manual selection');
+
+        // If adding to an existing site, save directly without going through add-unit
+        if (isAddingToSite && params.manualData) {
+            try {
+                const manual = JSON.parse(params.manualData);
+                console.log('💾 Saving to existing site:', siteName);
+
+                setSaving(true);
+
+                await savedUnitsService.create({
+                    modelId: manual.model.id,
+                    nickname: siteName,
+                });
+
+                setSaving(false);
+
+                // Navigate back - this will close pdf-viewer and add-unit, returning to site-details
+                // The site-details screen will auto-refresh via useFocusEffect
+                console.log('✅ Model saved! Navigating back to site details...');
+                router.back();
+                router.back(); // Go back twice to close both pdf-viewer and add-unit
+
+                // Show success message
+                setTimeout(() => {
+                    Alert.alert('Success', `${manual.model.modelNumber} added to ${siteName}!`);
+                }, 300);
+
+            } catch (error: any) {
+                console.error('Save error:', error);
+                setSaving(false);
+                Alert.alert('Save Error', error?.response?.data?.message || 'Failed to add model. Please try again.');
+            }
+        } else {
+            // Creating new site - go through add-unit to show details form
+            router.push({
+                pathname: '/(modals)/add-unit',
+                params: {
+                    manualConfirmed: 'true',
+                    manualData: params.manualData,
+                    siteName: '',
+                    mode: undefined,
+                },
+            });
+        }
     };
 
     const source = {
@@ -52,11 +107,13 @@ export default function PdfViewerScreen() {
                 }}
             />
 
-            {loading && (
+            {(loading || saving) && (
                 <View style={styles.loadingContainer}>
                     <ActivityIndicator size="large" color="#A78BFA" />
-                    <Text style={styles.loadingText}>Loading PDF...</Text>
-                    <Text style={styles.loadingSubtext}>This may take a moment for large files</Text>
+                    <Text style={styles.loadingText}>{saving ? 'Adding to site...' : 'Loading PDF...'}</Text>
+                    <Text style={styles.loadingSubtext}>
+                        {saving ? 'Just a moment...' : 'This may take a moment for large files'}
+                    </Text>
                 </View>
             )}
 
@@ -116,12 +173,17 @@ export default function PdfViewerScreen() {
             {isPreviewMode && (
                 <View style={styles.bottomBar}>
                     <TouchableOpacity
-                        style={styles.saveButton}
+                        style={[styles.saveButton, saving && styles.saveButtonDisabled]}
                         onPress={handleSaveManual}
                         activeOpacity={0.8}
+                        disabled={saving}
                     >
-                        <Ionicons name="checkmark-circle" size={24} color="#FFF" />
-                        <Text style={styles.saveButtonText}>Add this model to my site</Text>
+                        {saving ? (
+                            <ActivityIndicator size="small" color="#FFF" />
+                        ) : (
+                            <Ionicons name="checkmark-circle" size={24} color="#FFF" />
+                        )}
+                        <Text style={styles.saveButtonText}>{saving ? 'Adding...' : buttonText}</Text>
                     </TouchableOpacity>
                 </View>
             )}
@@ -230,6 +292,10 @@ const styles = StyleSheet.create({
         borderRadius: 12,
         paddingVertical: 16,
         gap: 8,
+    },
+    saveButtonDisabled: {
+        backgroundColor: '#6B7280',
+        opacity: 0.7,
     },
     saveButtonText: {
         color: '#FFF',

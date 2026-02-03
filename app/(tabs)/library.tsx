@@ -6,6 +6,12 @@ import { useRouter, useFocusEffect } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
 import { savedUnitsService, SavedUnitWithDetails } from '@/services/api/savedUnits.service';
 
+interface Site {
+  name: string; // nickname
+  units: SavedUnitWithDetails[];
+  modelCount: number;
+}
+
 export default function LibraryScreen() {
   const { theme, isDark } = useTheme();
   const router = useRouter();
@@ -13,16 +19,36 @@ export default function LibraryScreen() {
 
   // State
   const [savedUnits, setSavedUnits] = useState<SavedUnitWithDetails[]>([]);
+  const [sites, setSites] = useState<Site[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [navigating, setNavigating] = useState(false);
 
-  // Load saved units
+  // Load saved units and group by nickname (site name)
   const loadSavedUnits = async (isRefreshing = false) => {
     try {
       if (!isRefreshing) setLoading(true);
       const units = await savedUnitsService.getAll();
       setSavedUnits(units);
+
+      // Group units by nickname to create sites
+      const siteMap = new Map<string, SavedUnitWithDetails[]>();
+      units.forEach(unit => {
+        const nickname = unit.nickname;
+        if (!siteMap.has(nickname)) {
+          siteMap.set(nickname, []);
+        }
+        siteMap.get(nickname)!.push(unit);
+      });
+
+      // Convert to site array
+      const sitesArray: Site[] = Array.from(siteMap.entries()).map(([name, units]) => ({
+        name,
+        units,
+        modelCount: units.length,
+      }));
+
+      setSites(sitesArray);
     } catch (error: any) {
       console.error('Error loading saved units:', error);
       Alert.alert('Error', 'Failed to load saved units. Please try again.');
@@ -45,45 +71,51 @@ export default function LibraryScreen() {
     loadSavedUnits(true);
   };
 
-  // Navigate to unit details with debounce
-  const handleUnitPress = (unitId: string) => {
+  // Navigate to site details with debounce
+  const handleSitePress = (site: Site) => {
     if (navigating) {
       console.log('⏭️ Already navigating, ignoring tap');
       return;
     }
-    
-    console.log('🚀 Navigating to unit:', unitId);
+
+    console.log('🚀 Navigating to site:', site.name);
     setNavigating(true);
-    
+
+    // Pass the first unit ID from the site to load site details
     router.push({
       pathname: '/(modals)/unit-details',
-      params: { id: unitId }
+      params: { id: site.units[0].id }
     });
-    
+
     // Reset after 2 seconds
     setTimeout(() => {
       setNavigating(false);
     }, 2000);
   };
 
-  // Delete unit
-  const handleDeleteUnit = (unitId: string, nickname: string) => {
+  // Delete entire site (all units with same nickname)
+  const handleDeleteSite = (site: Site) => {
+    const modelWord = site.modelCount === 1 ? 'model' : 'models';
     Alert.alert(
-      'Delete Unit',
-      `Are you sure you want to delete "${nickname}"?`,
+      'Delete Site',
+      `Delete "${site.name}" and all ${site.modelCount} ${modelWord}?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Delete',
+          text: 'Delete All',
           style: 'destructive',
           onPress: async () => {
             try {
-              await savedUnitsService.delete(unitId);
-              setSavedUnits((prev) => prev.filter((u) => u.id !== unitId));
-              Alert.alert('Success', 'Unit deleted successfully');
+              // Delete all units at this site
+              await Promise.all(
+                site.units.map(unit => savedUnitsService.delete(unit.id))
+              );
+              // Reload the list
+              await loadSavedUnits();
+              Alert.alert('Success', 'Site deleted successfully');
             } catch (error: any) {
-              console.error('Error deleting unit:', error);
-              Alert.alert('Error', 'Failed to delete unit. Please try again.');
+              console.error('Error deleting site:', error);
+              Alert.alert('Error', 'Failed to delete site. Please try again.');
             }
           },
         },
@@ -104,7 +136,7 @@ export default function LibraryScreen() {
       <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]} edges={['bottom']}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.colors.primary} />
-          <Text style={[styles.loadingText, { color: theme.colors.textSecondary }]}>Loading your units...</Text>
+          <Text style={[styles.loadingText, { color: theme.colors.textSecondary }]}>Loading your sites...</Text>
         </View>
       </SafeAreaView>
     );
@@ -119,9 +151,9 @@ export default function LibraryScreen() {
         {/* Header Stats */}
         <View style={styles.statsContainer}>
           <View style={[styles.statCard, { backgroundColor: isDark ? theme.colors.backgroundSecondary : theme.colors.white }]}>
-            <Ionicons name="cube" size={24} color={theme.colors.primary} />
-            <Text style={[styles.statNumber, { color: theme.colors.text }]}>{savedUnits.length}</Text>
-            <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Saved Units</Text>
+            <Ionicons name="business" size={24} color={theme.colors.primary} />
+            <Text style={[styles.statNumber, { color: theme.colors.text }]}>{sites.length}</Text>
+            <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Sites</Text>
           </View>
           <View style={[styles.statCard, { backgroundColor: isDark ? theme.colors.backgroundSecondary : theme.colors.white }]}>
             <Ionicons name="help-circle" size={24} color={theme.colors.secondary} />
@@ -130,43 +162,43 @@ export default function LibraryScreen() {
           </View>
         </View>
 
-        {/* Saved Units Section */}
-        {savedUnits.length > 0 && (
+        {/* Sites Section */}
+        {sites.length > 0 && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>My Units</Text>
             </View>
 
-            {savedUnits.map((unit) => (
+            {sites.map((site) => (
               <View
-                key={unit.id}
+                key={site.name}
                 style={[styles.unitCard, { backgroundColor: isDark ? theme.colors.backgroundSecondary : theme.colors.white }]}
               >
-                <TouchableOpacity 
-                  style={styles.unitContent} 
+                <TouchableOpacity
+                  style={styles.unitContent}
                   activeOpacity={0.7}
-                  onPress={() => handleUnitPress(unit.id)}
+                  onPress={() => handleSitePress(site)}
                   disabled={navigating}
                 >
                   <View style={[styles.unitIcon, { backgroundColor: theme.colors.primary + '15' }]}>
-                    <Ionicons name="cube-outline" size={32} color={theme.colors.primary} />
+                    <Ionicons name="business" size={32} color={theme.colors.primary} />
                   </View>
                   <View style={styles.unitInfo}>
-                    <Text style={[styles.unitNickname, { color: theme.colors.text }]}>{unit.nickname}</Text>
+                    <Text style={[styles.unitNickname, { color: theme.colors.text }]}>{site.name}</Text>
                     <Text style={[styles.unitModel, { color: theme.colors.textSecondary }]}>
-                      {unit.model.productLine.oem.name} • {unit.model.modelNumber}
+                      {site.units[0].model.productLine.oem.name} • {site.modelCount === 1 ? site.units[0].model.modelNumber : `${site.modelCount} Models`}
                     </Text>
                     <View style={styles.unitMeta}>
-                      {unit.location && (
+                      {site.modelCount > 1 && (
                         <View style={styles.metaItem}>
-                          <Ionicons name="location-outline" size={14} color={theme.colors.textTertiary} />
-                          <Text style={[styles.metaText, { color: theme.colors.textTertiary }]}>{unit.location}</Text>
+                          <Ionicons name="cube" size={14} color={theme.colors.textTertiary} />
+                          <Text style={[styles.metaText, { color: theme.colors.textTertiary }]}>{site.modelCount} models</Text>
                         </View>
                       )}
-                      {unit.installDate && (
+                      {site.units[0].location && (
                         <View style={styles.metaItem}>
-                          <Ionicons name="calendar-outline" size={14} color={theme.colors.textTertiary} />
-                          <Text style={[styles.metaText, { color: theme.colors.textTertiary }]}>{formatDate(unit.installDate)}</Text>
+                          <Ionicons name="location-outline" size={14} color={theme.colors.textTertiary} />
+                          <Text style={[styles.metaText, { color: theme.colors.textTertiary }]}>{site.units[0].location}</Text>
                         </View>
                       )}
                     </View>
@@ -174,7 +206,7 @@ export default function LibraryScreen() {
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.deleteButton}
-                  onPress={() => handleDeleteUnit(unit.id, unit.nickname)}
+                  onPress={() => handleDeleteSite(site)}
                 >
                   <Ionicons name="trash-outline" size={20} color={theme.colors.danger} />
                 </TouchableOpacity>
@@ -192,8 +224,8 @@ export default function LibraryScreen() {
           </View>
         )}
 
-        {/* Empty State (when no units) */}
-        {savedUnits.length === 0 && (
+        {/* Empty State (when no sites) */}
+        {sites.length === 0 && (
           <View style={styles.emptyState}>
             <Ionicons name="cube-outline" size={64} color={theme.colors.textTertiary} />
             <Text style={[styles.emptyTitle, { color: theme.colors.text }]}>No Saved Units</Text>
