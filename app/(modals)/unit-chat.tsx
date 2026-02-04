@@ -20,6 +20,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import Markdown from 'react-native-markdown-display';
 import * as chatService from '@/services/api/chat.service';
 
 interface Message {
@@ -39,7 +40,7 @@ export default function UnitChatScreen() {
 
   const [messages, setMessages] = useState<Message[]>([
     {
-      id: '1',
+      id: `system-welcome-${Date.now()}`,
       role: 'system',
       content: `I'm your AI assistant for the ${unitName} (${modelNumber}). Ask me anything about troubleshooting, maintenance, specifications, or service procedures. I have access to the official service manual!`,
       timestamp: new Date(),
@@ -49,8 +50,10 @@ export default function UnitChatScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [streamingContent, setStreamingContent] = useState('');
+  const [streamingVersion, setStreamingVersion] = useState(0); // Force re-render on each token
   const [chatSessionId, setChatSessionId] = useState<string | undefined>(undefined);  // NEW: Track chat session
   const flatListRef = useRef<FlatList>(null);
+  const streamingContentRef = useRef('');
 
   // Load previous chat session if sessionId is provided
   useEffect(() => {
@@ -60,6 +63,41 @@ export default function UnitChatScreen() {
     }
   }, [sessionId]);
 
+  // Helper function to deduplicate and simplify sources
+  const formatSources = (sources: any[]) => {
+    if (!sources || sources.length === 0) return '';
+
+    // Group sources by manual and get unique page references
+    const sourceMap = new Map<string, Set<string>>();
+
+    sources.forEach((s: any) => {
+      const manualTitle = s.sectionTitle || s.title || 'Manual';
+      const pageRef = s.pageReference || s.page || 'Unknown page';
+
+      // Skip duplicate table entries - only keep the main page reference
+      if (manualTitle.includes('[TABLE]') || manualTitle.includes('TABLE')) {
+        return;
+      }
+
+      if (!sourceMap.has(manualTitle)) {
+        sourceMap.set(manualTitle, new Set());
+      }
+      sourceMap.get(manualTitle)!.add(pageRef);
+    });
+
+    // If we have sources, format them simply
+    if (sourceMap.size === 0) return '';
+
+    const formattedSources = Array.from(sourceMap.entries())
+      .map(([title, pages]) => {
+        const pageList = Array.from(pages).slice(0, 3); // Max 3 page refs per manual
+        return `• ${title}, ${pageList.join(', ')}`;
+      })
+      .slice(0, 3); // Max 3 manuals
+
+    return `\n\n📖 **Sources:**\n${formattedSources.join('\n')}`;
+  };
+
   const loadPreviousChat = async (sId: string) => {
     setLoadingHistory(true);
     try {
@@ -67,25 +105,22 @@ export default function UnitChatScreen() {
 
       // Convert all questions in the session to messages
       const conversationMessages: Message[] = [];
-      
+      let messageCounter = Date.now();
+
       for (const msg of session.messages) {
-        // User question
+        // User question - use unique timestamp-based ID
         conversationMessages.push({
-          id: `user-${msg.id}`,
+          id: `history-user-${msg.id}-${messageCounter++}`,
           role: 'user',
           content: msg.question,
           timestamp: new Date(msg.timestamp),
         });
 
-        // AI response with sources
-        const sourcesText = msg.sources && msg.sources.length > 0
-          ? `\n\n📖 Sources:\n${msg.sources.map((s: any) =>
-            `• ${s.sectionTitle || 'Manual'}, ${s.pageReference || 'Unknown page'}`
-          ).join('\n')}`
-          : '';
+        // AI response with simplified sources
+        const sourcesText = formatSources(msg.sources);
 
         conversationMessages.push({
-          id: `ai-${msg.id}`,
+          id: `history-ai-${msg.id}-${messageCounter++}`,
           role: 'assistant',
           content: msg.answer + sourcesText,
           timestamp: new Date(msg.timestamp),
@@ -110,11 +145,20 @@ export default function UnitChatScreen() {
     }
   }, [messages]);
 
+  useEffect(() => {
+    // Auto-scroll during streaming
+    if (streamingContent) {
+      console.log('🟠 streamingContent updated, length:', streamingContent.length);
+      flatListRef.current?.scrollToEnd({ animated: false });
+    }
+  }, [streamingContent]);
+
   const handleSend = async () => {
     if (!inputText.trim() || isLoading) return;
 
+    const timestamp = Date.now();
     const userMessage: Message = {
-      id: Date.now().toString(),
+      id: `user-${timestamp}`,
       role: 'user',
       content: inputText.trim(),
       timestamp: new Date(),
@@ -122,28 +166,25 @@ export default function UnitChatScreen() {
 
     // Build messages array with new user message
     const updatedMessages = [...messages, userMessage];
-    
+
     setMessages(updatedMessages);
     setInputText('');
     setIsLoading(true);
     setStreamingContent('');
+    setStreamingVersion(0);
+    streamingContentRef.current = '';
 
     try {
-      // Create placeholder for AI message
-      const aiMessageId = (Date.now() + 1).toString();
-      setMessages((prev) => [...prev, {
-        id: aiMessageId,
-        role: 'assistant',
-        content: '',
-        timestamp: new Date(),
-      }]);
+      // Create unique ID for the AI message (will be added when complete)
+      const aiMessageId = `ai-${timestamp}`;
+      console.log('🟣 Preparing AI message with ID:', aiMessageId);
 
       // Stream the response - send full conversation history (last 10 messages)
       // Filter out system messages (welcome message) - only send user/assistant
       const conversationMessages = updatedMessages
         .filter(m => m.role !== 'system')
         .slice(-10); // Last 10 messages
-      
+
       await chatService.askQuestion(
         unitId,
         conversationMessages,
@@ -155,9 +196,9 @@ export default function UnitChatScreen() {
 
           onWarning: (warning) => {
             console.warn('⚠️ Warning:', warning);
-            // Add warning message to chat
+            // Add warning message to chat with unique ID
             const warningMessage: Message = {
-              id: `warning-${Date.now()}`,
+              id: `warning-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
               role: 'system',
               content: `⚠️ ${warning}`,
               timestamp: new Date(),
@@ -166,46 +207,47 @@ export default function UnitChatScreen() {
           },
 
           onToken: (token) => {
-            setStreamingContent((prev) => {
-              const newContent = prev + token;
-              // Update the AI message with streamed content
-              setMessages((messages) =>
-                messages.map((msg) =>
-                  msg.id === aiMessageId
-                    ? { ...msg, content: newContent }
-                    : msg
-                )
-              );
-              return newContent;
-            });
+            console.log('🔵 Token received:', token.substring(0, 20), '... length:', token.length);
+
+            // Update ref immediately for synchronous access
+            streamingContentRef.current += token;
+            const newContent = streamingContentRef.current;
+
+            console.log('🟢 New content length:', newContent.length);
+
+            // Update both streamingContent AND increment version to force re-render
+            setStreamingContent(newContent);
+            setStreamingVersion(v => v + 1);
           },
 
           onComplete: (data) => {
             console.log('✅ Complete:', data);
-            
+
             // Store chat session ID for future messages in this conversation
             if (data.chatSessionId) {
               console.log('💾 Storing chat session ID:', data.chatSessionId);
               setChatSessionId(data.chatSessionId);
             }
-            
+
+            // Get the final content from the ref
+            const finalContent = streamingContentRef.current;
+
+            // Add sources if available
+            const sourcesText = data.sources.length > 0 ? formatSources(data.sources) : '';
+            const fullContent = finalContent + sourcesText;
+
+            // Add the complete AI message to the messages array
+            setMessages((messages) => [...messages, {
+              id: aiMessageId,
+              role: 'assistant',
+              content: fullContent,
+              timestamp: new Date(),
+            }]);
+
             setIsLoading(false);
             setStreamingContent('');
-
-            // Show sources in a subtle way
-            if (data.sources.length > 0) {
-              const sourcesText = `\n\n📖 Sources:\n${data.sources.map(s =>
-                `• ${s.title}, ${s.page}`
-              ).join('\n')}`;
-
-              setMessages((messages) =>
-                messages.map((msg) =>
-                  msg.id === aiMessageId
-                    ? { ...msg, content: msg.content + sourcesText }
-                    : msg
-                )
-              );
-            }
+            setStreamingVersion(0);
+            streamingContentRef.current = '';
           },
 
           onError: (error) => {
@@ -213,9 +255,8 @@ export default function UnitChatScreen() {
             Alert.alert('Error', `Failed to get response: ${error}`);
             setIsLoading(false);
             setStreamingContent('');
-
-            // Remove failed AI message
-            setMessages((prev) => prev.filter(msg => msg.id !== aiMessageId));
+            setStreamingVersion(0);
+            streamingContentRef.current = '';
           },
         },
         chatSessionId  // Pass existing session ID (undefined for first message)
@@ -225,6 +266,8 @@ export default function UnitChatScreen() {
       Alert.alert('Error', 'Failed to send message. Please try again.');
       setIsLoading(false);
       setStreamingContent('');
+      setStreamingVersion(0);
+      streamingContentRef.current = '';
     }
   };
 
@@ -253,13 +296,25 @@ export default function UnitChatScreen() {
               <Text style={styles.aiLabel}>OEM TechTalk AI Assistant</Text>
             </View>
           )}
-          {!isUser && !isSystem && item.content === '' ? (
-            <View style={{ paddingVertical: 12 }}>
-              <ActivityIndicator size="small" color="#A78BFA" />
-              <Text style={[styles.messageText, { color: '#999', fontSize: 12, marginTop: 8 }]}>
-                Searching manuals...
-              </Text>
-            </View>
+          {!isUser && !isSystem ? (
+            <Markdown
+              style={{
+                body: styles.markdownBody,
+                paragraph: styles.markdownParagraph,
+                heading1: styles.markdownHeading,
+                heading2: styles.markdownHeading,
+                strong: styles.markdownBold,
+                em: styles.markdownItalic,
+                code_inline: styles.markdownCodeInline,
+                code_block: styles.markdownCodeBlock,
+                fence: styles.markdownCodeBlock,
+                list_item: styles.markdownListItem,
+                bullet_list: styles.markdownList,
+                ordered_list: styles.markdownList,
+              }}
+            >
+              {item.content}
+            </Markdown>
           ) : (
             <Text
               style={[
@@ -326,6 +381,7 @@ export default function UnitChatScreen() {
           data={messages}
           renderItem={renderMessage}
           keyExtractor={(item) => item.id}
+          extraData={streamingContent}
           contentContainerStyle={styles.messagesList}
           showsVerticalScrollIndicator={false}
           onContentSizeChange={() =>
@@ -349,13 +405,51 @@ export default function UnitChatScreen() {
           </View>
         )}
 
-        {/* Loading Indicator */}
+        {/* Streaming Message Display - Shows box with loading then streams content */}
         {isLoading && (
-          <View style={styles.loadingContainer}>
-            <View style={styles.loadingDots}>
-              <View style={[styles.dot, styles.dot1]} />
-              <View style={[styles.dot, styles.dot2]} />
-              <View style={[styles.dot, styles.dot3]} />
+          <View style={styles.streamingMessageContainer} key={`streaming-${streamingVersion}`}>
+            <View style={styles.streamingMessageBubble}>
+              <View style={styles.aiHeader}>
+                <Ionicons name="sparkles" size={16} color="#A78BFA" />
+                <Text style={styles.aiLabel}>OEM TechTalk AI Assistant</Text>
+              </View>
+
+              {streamingContent ? (
+                <Markdown
+                  key={streamingVersion}
+                  style={{
+                    body: styles.markdownBody,
+                    paragraph: styles.markdownParagraph,
+                    heading1: styles.markdownHeading,
+                    heading2: styles.markdownHeading,
+                    strong: styles.markdownBold,
+                    em: styles.markdownItalic,
+                    code_inline: styles.markdownCodeInline,
+                    code_block: styles.markdownCodeBlock,
+                    fence: styles.markdownCodeBlock,
+                    list_item: styles.markdownListItem,
+                    bullet_list: styles.markdownList,
+                    ordered_list: styles.markdownList,
+                  }}
+                >
+                  {streamingContent}
+                </Markdown>
+              ) : (
+                <View style={{ paddingVertical: 12 }}>
+                  <ActivityIndicator size="small" color="#A78BFA" />
+                  <Text style={[styles.messageText, { color: '#999', fontSize: 12, marginTop: 8 }]}>
+                    Searching manuals...
+                  </Text>
+                </View>
+              )}
+
+              {streamingContent && (
+                <View style={styles.streamingIndicator}>
+                  <View style={[styles.dot, styles.dot1]} />
+                  <View style={[styles.dot, styles.dot2]} />
+                  <View style={[styles.dot, styles.dot3]} />
+                </View>
+              )}
             </View>
           </View>
         )}
@@ -492,6 +586,28 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: 16,
   },
+  streamingMessageContainer: {
+    padding: 16,
+    paddingTop: 8,
+  },
+  streamingMessageBubble: {
+    backgroundColor: '#1E293B',
+    borderRadius: 16,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  streamingIndicator: {
+    flexDirection: 'row',
+    gap: 6,
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#334155',
+  },
   dot: {
     width: 8,
     height: 8,
@@ -569,5 +685,59 @@ const styles = StyleSheet.create({
     color: '#64748B',
     marginTop: 8,
     textAlign: 'center',
+  },
+  // Markdown styles
+  markdownBody: {
+    color: '#F1F5F9',
+  },
+  markdownParagraph: {
+    color: '#F1F5F9',
+    fontSize: 15,
+    lineHeight: 22,
+    marginTop: 0,
+    marginBottom: 12,
+  },
+  markdownHeading: {
+    color: '#F1F5F9',
+    fontWeight: '700',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  markdownBold: {
+    color: '#F1F5F9',
+    fontWeight: '700',
+  },
+  markdownItalic: {
+    color: '#F1F5F9',
+    fontStyle: 'italic',
+  },
+  markdownCodeInline: {
+    backgroundColor: '#334155',
+    color: '#A78BFA',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    fontSize: 14,
+  },
+  markdownCodeBlock: {
+    backgroundColor: '#0F172A',
+    color: '#E2E8F0',
+    padding: 12,
+    borderRadius: 8,
+    marginVertical: 8,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    fontSize: 13,
+    borderWidth: 1,
+    borderColor: '#334155',
+  },
+  markdownList: {
+    marginBottom: 12,
+  },
+  markdownListItem: {
+    color: '#F1F5F9',
+    fontSize: 15,
+    lineHeight: 22,
+    marginBottom: 6,
   },
 });

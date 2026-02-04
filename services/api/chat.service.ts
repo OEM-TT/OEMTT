@@ -131,8 +131,13 @@ export async function askQuestion(
                   break;
                 
                 case 'token':
-                  console.log('🔤 Token:', data.content);
-                  callbacks.onToken?.(data.content);
+                  console.log('🔤 Token received:', data.content?.substring(0, 20) || 'empty');
+                  if (callbacks.onToken) {
+                    console.log('🔤 Calling onToken callback');
+                    callbacks.onToken(data.content);
+                  } else {
+                    console.warn('⚠️ onToken callback is not defined!');
+                  }
                   break;
                 
                 case 'warning':
