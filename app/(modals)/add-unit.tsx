@@ -33,6 +33,9 @@ export default function AddUnitModal() {
     mode?: string;
     manualConfirmed?: string;
     manualData?: string;
+    initialSearch?: string;
+    prefilledOem?: string;
+    prefilledModel?: string;
   }>();
   const styles = createStyles(theme);
 
@@ -144,6 +147,30 @@ export default function AddUnitModal() {
       }
     }
   }, [params.manualConfirmed, params.manualData]);
+
+  // Handle incoming search params from search screen
+  useEffect(() => {
+    // Wait for OEMs to load
+    if (loadingOems || oems.length === 0) return;
+
+    // Handle prefilled OEM + model (from popular searches)
+    if (params.prefilledOem && params.prefilledModel) {
+      const oem = oems.find(o => o.name === params.prefilledOem);
+      if (oem) {
+        setSelectedOem(oem.id);
+        setModelNumber(params.prefilledModel);
+        // Trigger search automatically
+        setTimeout(() => {
+          handleSearch();
+        }, 500);
+      }
+    }
+    // Handle generic search query
+    else if (params.initialSearch) {
+      setModelNumber(params.initialSearch);
+      // Don't auto-trigger, let user select OEM first if not already selected
+    }
+  }, [params.prefilledOem, params.prefilledModel, params.initialSearch, loadingOems, oems]);
 
   // Search for models with auto-discovery
   const handleSearch = async () => {

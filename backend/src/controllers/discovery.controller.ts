@@ -235,6 +235,62 @@ export async function searchWithDiscovery(req: AuthRequest, res: Response) {
  * 
  * GET /api/discovery/status/:manualId
  */
+/**
+ * Get popular searches based on actual user search data
+ * GET /api/discovery/popular
+ */
+export async function getPopularSearches(req: AuthRequest, res: Response) {
+    try {
+        // Get searches from last 30 days
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+        const searches = await prisma.search.findMany({
+            where: {
+                createdAt: { gte: thirtyDaysAgo },
+                manualsFound: { gt: 0 }, // Only successful searches
+            },
+            select: {
+                oemName: true,
+                modelNumber: true,
+            },
+        });
+
+        // Count occurrences
+        const searchCounts: Record<string, { oem: string; model: string; count: number }> = {};
+
+        searches.forEach((s: { oemName: string; modelNumber: string }) => {
+            const key = `${s.oemName}|${s.modelNumber}`;
+            if (!searchCounts[key]) {
+                searchCounts[key] = { oem: s.oemName, model: s.modelNumber, count: 0 };
+            }
+            searchCounts[key].count++;
+        });
+
+        // Sort by count and take top 10
+        const popular = Object.values(searchCounts)
+            .sort((a, b) => b.count - a.count)
+            .slice(0, 10)
+            .map(item => ({
+                displayText: `${item.oem} ${item.model}`,
+                oem: item.oem,
+                model: item.model,
+                searchCount: item.count,
+            }));
+
+        res.json({
+            success: true,
+            data: popular,
+        });
+    } catch (error: any) {
+        console.error('Error fetching popular searches:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to fetch popular searches',
+        });
+    }
+}
+
 export async function getDiscoveryStatus(req: AuthRequest, res: Response) {
     try {
         const manualId = Array.isArray(req.params.manualId) ? req.params.manualId[0] : req.params.manualId;

@@ -166,7 +166,7 @@ export default function LibraryScreen() {
         {sites.length > 0 && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>My Units</Text>
+              <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>My Sites</Text>
             </View>
 
             {sites.map((site) => (
