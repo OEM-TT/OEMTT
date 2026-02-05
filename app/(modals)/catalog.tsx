@@ -69,14 +69,19 @@ export default function CatalogScreen() {
   const loadIndustries = async () => {
     setLoading(true);
     try {
-      const response = await api.get<{ success: boolean; data: OEM[] }>('/oems');
-      const allOEMs = response.data || [];
-      
+      console.log('📦 Loading industries...');
+      const response: any = await api.get('/oems');
+      console.log('📦 Response:', response.data);
+      // The response.data IS the array directly, not nested
+      const allOEMs = Array.isArray(response.data) ? response.data : (response.data?.data || []);
+      console.log('📦 All OEMs:', allOEMs.length);
+
       // Extract unique industries (verticals)
-      const uniqueIndustries = Array.from(new Set(allOEMs.map(oem => oem.vertical))).filter(Boolean);
+      const uniqueIndustries = Array.from(new Set(allOEMs.map((oem: OEM) => oem.vertical))).filter(Boolean) as string[];
+      console.log('📦 Industries found:', uniqueIndustries);
       setIndustries(uniqueIndustries);
     } catch (error) {
-      console.error('Error loading industries:', error);
+      console.error('❌ Error loading industries:', error);
     } finally {
       setLoading(false);
     }
@@ -88,8 +93,9 @@ export default function CatalogScreen() {
     setLoading(true);
 
     try {
-      const response = await api.get<{ success: boolean; data: OEM[] }>('/oems');
-      const filteredOEMs = (response.data || []).filter(oem => oem.vertical === industry);
+      const response: any = await api.get('/oems');
+      const allOEMs = Array.isArray(response.data) ? response.data : (response.data?.data || []);
+      const filteredOEMs = allOEMs.filter((oem: OEM) => oem.vertical === industry);
       setOEMs(filteredOEMs);
     } catch (error) {
       console.error('Error loading OEMs:', error);
@@ -104,8 +110,9 @@ export default function CatalogScreen() {
     setLoading(true);
 
     try {
-      const response = await api.get<{ success: boolean; data: ProductLine[] }>(`/oems/${oem.id}/product-lines`);
-      setProductLines(response.data || []);
+      const response: any = await api.get(`/oems/${oem.id}/product-lines`);
+      const data = Array.isArray(response.data) ? response.data : (response.data?.data || []);
+      setProductLines(data);
     } catch (error) {
       console.error('Error loading product lines:', error);
     } finally {
@@ -119,10 +126,15 @@ export default function CatalogScreen() {
     setLoading(true);
 
     try {
-      const response = await api.get<{ success: boolean; data: Model[] }>(`/oems/product-lines/${productLine.id}/models`);
-      setModels(response.data || []);
+      console.log('📦 Loading models for product line:', productLine.id, productLine.name);
+      const response: any = await api.get(`/oems/product-lines/${productLine.id}/models`);
+      console.log('📦 Models response:', response.data);
+      // API returns {models: [], productLine: {}} structure
+      const data = response.data?.models || [];
+      console.log('📦 Models found:', data.length, data);
+      setModels(data);
     } catch (error) {
-      console.error('Error loading models:', error);
+      console.error('❌ Error loading models:', error);
     } finally {
       setLoading(false);
     }
@@ -134,10 +146,15 @@ export default function CatalogScreen() {
     setLoading(true);
 
     try {
-      const response = await api.get<{ success: boolean; data: Manual[] }>(`/models/${model.id}/manuals`);
-      setManuals(response.data || []);
+      console.log('📦 Loading manuals for model:', model.id, model.modelNumber);
+      const response: any = await api.get(`/models/${model.id}/manuals`);
+      console.log('📦 Manuals response:', response.data);
+      // API returns {manuals: []} structure
+      const data = response.data?.manuals || [];
+      console.log('📦 Manuals found:', data.length, data);
+      setManuals(data);
     } catch (error) {
-      console.error('Error loading manuals:', error);
+      console.error('❌ Error loading manuals:', error);
     } finally {
       setLoading(false);
     }
@@ -146,7 +163,7 @@ export default function CatalogScreen() {
   const handleManualPress = (manual: Manual) => {
     // Get the public URL for the PDF
     const pdfUrl = getManualPublicUrl(manual.storagePath);
-    
+
     // Navigate to PDF viewer
     router.push({
       pathname: '/(modals)/pdf-viewer',
@@ -191,6 +208,8 @@ export default function CatalogScreen() {
   };
 
   const renderContent = () => {
+    console.log('🎨 Rendering content. Mode:', viewMode, 'Loading:', loading, 'Industries:', industries.length);
+
     if (loading) {
       return (
         <View style={styles.loadingContainer}>
@@ -201,6 +220,14 @@ export default function CatalogScreen() {
     }
 
     if (viewMode === 'industries') {
+      if (industries.length === 0) {
+        return (
+          <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
+            No industries available
+          </Text>
+        );
+      }
+
       return (
         <View style={styles.gridContainer}>
           {industries.map((industry) => (
@@ -213,7 +240,6 @@ export default function CatalogScreen() {
                 <Ionicons name="business" size={28} color={theme.colors.primary} />
               </View>
               <Text style={[styles.cardTitle, { color: theme.colors.text }]}>{industry}</Text>
-              <Ionicons name="chevron-forward" size={20} color={theme.colors.textTertiary} />
             </TouchableOpacity>
           ))}
         </View>
@@ -235,7 +261,7 @@ export default function CatalogScreen() {
               <View style={styles.listCardContent}>
                 <Text style={[styles.listCardTitle, { color: theme.colors.text }]}>{oem.name}</Text>
               </View>
-              <Ionicons name="chevron-forward" size={20} color={theme.colors.textTertiary} />
+              {/* <Ionicons name="chevron-forward" size={20} color={theme.colors.textTertiary} /> */}
             </TouchableOpacity>
           ))}
         </View>
@@ -267,7 +293,7 @@ export default function CatalogScreen() {
                     </Text>
                   )}
                 </View>
-                <Ionicons name="chevron-forward" size={20} color={theme.colors.textTertiary} />
+                {/* <Ionicons name="chevron-forward" size={20} color={theme.colors.textTertiary} /> */}
               </TouchableOpacity>
             ))
           )}
@@ -303,7 +329,7 @@ export default function CatalogScreen() {
                     {model._count.manuals} {model._count.manuals === 1 ? 'manual' : 'manuals'}
                   </Text>
                 </View>
-                <Ionicons name="chevron-forward" size={20} color={theme.colors.textTertiary} />
+                {/* <Ionicons name="chevron-forward" size={20} color={theme.colors.textTertiary} /> */}
               </TouchableOpacity>
             ))
           )}
@@ -325,14 +351,14 @@ export default function CatalogScreen() {
                 style={[styles.manualCard, { backgroundColor: isDark ? theme.colors.backgroundSecondary : theme.colors.white }]}
                 onPress={() => handleManualPress(manual)}
               >
-                <View style={[styles.iconCircle, { backgroundColor: theme.colors.error + '15' }]}>
-                  <Ionicons name="document-text" size={24} color={theme.colors.error} />
+                <View style={[styles.iconCircle, { backgroundColor: theme.colors.secondary + '15' }]}>
+                  <Ionicons name="document-text" size={24} color={theme.colors.secondary} />
                 </View>
                 <View style={styles.listCardContent}>
                   <Text style={[styles.listCardTitle, { color: theme.colors.text }]}>{manual.title}</Text>
                   <View style={styles.manualMeta}>
                     <Text style={[styles.manualType, { color: theme.colors.textTertiary }]}>
-                      {manual.type.toUpperCase()}
+                      {manual.manualType.toUpperCase()}
                     </Text>
                     {manual.pageCount && (
                       <Text style={[styles.manualPages, { color: theme.colors.textTertiary }]}>
@@ -389,6 +415,7 @@ export default function CatalogScreen() {
 const createStyles = (theme: any) => StyleSheet.create({
   container: {
     flex: 1,
+    paddingTop: 60,
   },
   header: {
     flexDirection: 'row',
