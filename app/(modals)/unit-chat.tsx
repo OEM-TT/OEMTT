@@ -18,19 +18,23 @@ import {
   Alert,
   ActivityIndicator,
 } from 'react-native';
-import { useLocalSearchParams, Stack } from 'expo-router';
+import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import Markdown from 'react-native-markdown-display';
 import * as chatService from '@/services/api/chat.service';
+import { savedUnitsService } from '@/services/api/savedUnits.service';
+import { getManualPublicUrl } from '@/services/supabase';
 
 interface Message {
   id: string;
   role: 'user' | 'assistant' | 'system';
   content: string;
   timestamp: Date;
+  sources?: chatService.ChatSource[]; // Store sources for clickable pages
 }
 
 export default function UnitChatScreen() {
+  const router = useRouter();
   const { unitId, unitName, modelNumber, sessionId } = useLocalSearchParams<{
     unitId: string;
     unitName: string;
@@ -50,7 +54,6 @@ export default function UnitChatScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [streamingContent, setStreamingContent] = useState('');
-  const [streamingVersion, setStreamingVersion] = useState(0); // Force re-render on each token
   const [chatSessionId, setChatSessionId] = useState<string | undefined>(undefined);  // NEW: Track chat session
   const flatListRef = useRef<FlatList>(null);
   const streamingContentRef = useRef('');
@@ -63,51 +66,21 @@ export default function UnitChatScreen() {
     }
   }, [sessionId]);
 
-  // Helper function to deduplicate and simplify sources
-  const formatSources = (sources: any[]) => {
-    if (!sources || sources.length === 0) return '';
-
-    // Group sources by manual and get unique page references
-    const sourceMap = new Map<string, Set<string>>();
-
-    sources.forEach((s: any) => {
-      const manualTitle = s.sectionTitle || s.title || 'Manual';
-      const pageRef = s.pageReference || s.page || 'Unknown page';
-
-      // Skip duplicate table entries - only keep the main page reference
-      if (manualTitle.includes('[TABLE]') || manualTitle.includes('TABLE')) {
-        return;
-      }
-
-      if (!sourceMap.has(manualTitle)) {
-        sourceMap.set(manualTitle, new Set());
-      }
-      sourceMap.get(manualTitle)!.add(pageRef);
-    });
-
-    // If we have sources, format them simply
-    if (sourceMap.size === 0) return '';
-
-    const formattedSources = Array.from(sourceMap.entries())
-      .map(([title, pages]) => {
-        const pageList = Array.from(pages).slice(0, 3); // Max 3 page refs per manual
-        return `• ${title}, ${pageList.join(', ')}`;
-      })
-      .slice(0, 3); // Max 3 manuals
-
-    return `\n\n📖 **Sources:**\n${formattedSources.join('\n')}`;
-  };
-
   const loadPreviousChat = async (sId: string) => {
     setLoadingHistory(true);
     try {
       const session = await chatService.getChatSession(sId);
+      console.log('📜 Loaded chat session:', session);
 
       // Convert all questions in the session to messages
       const conversationMessages: Message[] = [];
       let messageCounter = Date.now();
 
       for (const msg of session.messages) {
+        console.log('💬 Processing message:', msg.id);
+        console.log('   Question:', msg.question);
+        console.log('   Sources:', msg.sources);
+
         // User question - use unique timestamp-based ID
         conversationMessages.push({
           id: `history-user-${msg.id}-${messageCounter++}`,
@@ -116,17 +89,20 @@ export default function UnitChatScreen() {
           timestamp: new Date(msg.timestamp),
         });
 
-        // AI response with simplified sources
-        const sourcesText = formatSources(msg.sources);
-
+        // AI response - answer already has sources in it, don't add more!
+        // Store sources data for clickable page numbers
         conversationMessages.push({
           id: `history-ai-${msg.id}-${messageCounter++}`,
           role: 'assistant',
-          content: msg.answer + sourcesText,
+          content: msg.answer, // DON'T append sources - they're already in the answer!
           timestamp: new Date(msg.timestamp),
+          sources: msg.sources, // Store sources for clickable page numbers
         });
+
+        console.log('✅ Added message with sources:', msg.sources?.length || 0, 'sources');
       }
 
+      console.log('📤 Setting messages:', conversationMessages.length);
       setMessages((prev) => [...prev, ...conversationMessages]);
     } catch (error) {
       console.error('Failed to load previous chat:', error);
@@ -171,7 +147,6 @@ export default function UnitChatScreen() {
     setInputText('');
     setIsLoading(true);
     setStreamingContent('');
-    setStreamingVersion(0);
     streamingContentRef.current = '';
 
     try {
@@ -207,17 +182,11 @@ export default function UnitChatScreen() {
           },
 
           onToken: (token) => {
-            console.log('🔵 Token received:', token.substring(0, 20), '... length:', token.length);
-
-            // Update ref immediately for synchronous access
+            // Accumulate tokens in ref for final message
             streamingContentRef.current += token;
-            const newContent = streamingContentRef.current;
 
-            console.log('🟢 New content length:', newContent.length);
-
-            // Update both streamingContent AND increment version to force re-render
-            setStreamingContent(newContent);
-            setStreamingVersion(v => v + 1);
+            // Update streaming display (React may batch these, showing text in chunks)
+            setStreamingContent(streamingContentRef.current);
           },
 
           onComplete: (data) => {
@@ -232,21 +201,20 @@ export default function UnitChatScreen() {
             // Get the final content from the ref
             const finalContent = streamingContentRef.current;
 
-            // Add sources if available
-            const sourcesText = data.sources.length > 0 ? formatSources(data.sources) : '';
-            const fullContent = finalContent + sourcesText;
+            // Don't append sources - the AI already includes them in the response
+            // This prevents duplicate "Sources:" sections
 
             // Add the complete AI message to the messages array
             setMessages((messages) => [...messages, {
               id: aiMessageId,
               role: 'assistant',
-              content: fullContent,
+              content: finalContent,
               timestamp: new Date(),
+              sources: data.sources, // Store sources for clickable page numbers
             }]);
 
             setIsLoading(false);
             setStreamingContent('');
-            setStreamingVersion(0);
             streamingContentRef.current = '';
           },
 
@@ -255,7 +223,6 @@ export default function UnitChatScreen() {
             Alert.alert('Error', `Failed to get response: ${error}`);
             setIsLoading(false);
             setStreamingContent('');
-            setStreamingVersion(0);
             streamingContentRef.current = '';
           },
         },
@@ -266,14 +233,171 @@ export default function UnitChatScreen() {
       Alert.alert('Error', 'Failed to send message. Please try again.');
       setIsLoading(false);
       setStreamingContent('');
-      setStreamingVersion(0);
       streamingContentRef.current = '';
     }
+  };
+
+  // Handle clicking a page number in sources
+  const handlePageClick = async (pageNumber: number, manualId: string) => {
+    try {
+      console.log(`📄 Opening manual ${manualId} at page ${pageNumber}`);
+
+      // Fetch the manual directly by ID
+      const { manualsService } = await import('@/services/api/manuals.service');
+      const manual = await manualsService.getById(manualId);
+      console.log('Manual:', manual.title);
+
+      if (!manual.storagePath && !manual.sourceUrl) {
+        Alert.alert('Manual Not Available', 'This manual does not have a PDF file available.');
+        return;
+      }
+
+      const pdfUrl = manual.storagePath
+        ? getManualPublicUrl(manual.storagePath)
+        : manual.sourceUrl;
+
+      console.log('Opening PDF at page:', pageNumber);
+
+      // Navigate to PDF viewer at specific page
+      router.push({
+        pathname: '/(modals)/pdf-viewer',
+        params: {
+          url: pdfUrl,
+          title: manual.title || 'Manual',
+          page: pageNumber.toString(),
+          mode: 'view',
+        },
+      });
+    } catch (error: any) {
+      console.error('Error opening PDF:', error);
+      Alert.alert('Error', `Failed to open manual: ${error.message || 'Unknown error'}`);
+    }
+  };
+
+  // Render sources with clickable page numbers
+  const renderSourcesWithClickablePages = (content: string, sources?: chatService.ChatSource[]) => {
+    console.log('🔍 renderSourcesWithClickablePages called');
+    console.log('   Sources data:', JSON.stringify(sources));
+    console.log('   Content length:', content.length);
+
+    // Extract the sources line from the content
+    const sourcesMatch = content.match(/\*\*Sources:\*\*(.+?)(?:\n|$)/);
+    console.log('   Sources match:', sourcesMatch);
+
+    if (!sourcesMatch) {
+      console.log('   ❌ No sources match in content, returning original');
+      return content; // Return original if no sources found
+    }
+
+    const beforeSources = content.substring(0, sourcesMatch.index);
+    const sourcesLine = sourcesMatch[0];
+    const afterSources = content.substring(sourcesMatch.index! + sourcesLine.length);
+
+    console.log('   Sources line:', sourcesLine);
+
+    // Split the sources line by "Page " to identify page numbers
+    const parts = sourcesLine.split(/(Page \d+)/g);
+    console.log('   Parts:', parts);
+
+    return (
+      <View>
+        {/* Content before sources */}
+        <Markdown
+          style={{
+            body: styles.markdownBody,
+            paragraph: styles.markdownParagraph,
+            heading1: styles.markdownHeading,
+            heading2: styles.markdownHeading,
+            strong: styles.markdownBold,
+            em: styles.markdownItalic,
+            code_inline: styles.markdownCodeInline,
+            code_block: styles.markdownCodeBlock,
+            fence: styles.markdownCodeBlock,
+            list_item: styles.markdownListItem,
+            bullet_list: styles.markdownList,
+            ordered_list: styles.markdownList,
+          }}
+        >
+          {beforeSources}
+        </Markdown>
+
+        {/* Sources section with clickable pages */}
+        <View style={styles.sourcesContainer}>
+          <Text style={styles.sourcesLabel}>Sources: </Text>
+          {parts.map((part, index) => {
+            const pageMatch = part.match(/Page (\d+)/);
+            if (pageMatch) {
+              const pageNumber = parseInt(pageMatch[1]);
+
+              // Find the manual ID for this page from the sources array
+              const sourceForPage = sources?.find(s =>
+                s.pageReference?.includes(`Page ${pageNumber}`) ||
+                s.pageReference?.includes(`${pageNumber}`)
+              );
+              const manualId = sourceForPage?.manualId || sources?.[0]?.manualId;
+
+              console.log(`   📄 Page ${pageNumber} -> Manual ID: ${manualId}`);
+
+              return (
+                <TouchableOpacity
+                  key={index}
+                  onPress={() => {
+                    console.log(`🖱️ Page ${pageNumber} clicked! Manual ID: ${manualId}`);
+                    if (manualId) {
+                      handlePageClick(pageNumber, manualId);
+                    } else {
+                      Alert.alert('Error', 'Could not determine which manual this page belongs to.');
+                    }
+                  }}
+                  style={styles.pageButton}
+                >
+                  <Text style={styles.pageLink}>{part}</Text>
+                </TouchableOpacity>
+              );
+            }
+            return <Text key={index} style={styles.sourcesText}>{part}</Text>;
+          })}
+        </View>
+
+        {/* Content after sources (if any) */}
+        {afterSources && (
+          <Markdown
+            style={{
+              body: styles.markdownBody,
+              paragraph: styles.markdownParagraph,
+              heading1: styles.markdownHeading,
+              heading2: styles.markdownHeading,
+              strong: styles.markdownBold,
+              em: styles.markdownItalic,
+              code_inline: styles.markdownCodeInline,
+              code_block: styles.markdownCodeBlock,
+              fence: styles.markdownCodeBlock,
+              list_item: styles.markdownListItem,
+              bullet_list: styles.markdownList,
+              ordered_list: styles.markdownList,
+            }}
+          >
+            {afterSources}
+          </Markdown>
+        )}
+      </View>
+    );
   };
 
   const renderMessage = ({ item }: { item: Message }) => {
     const isUser = item.role === 'user';
     const isSystem = item.role === 'system';
+
+    // Debug logging for AI messages
+    if (!isUser && !isSystem) {
+      console.log('🎨 Rendering AI message:', item.id);
+      console.log('   Has sources?', !!item.sources);
+      console.log('   Sources length:', item.sources?.length || 0);
+    }
+
+    const closeModal = () => {
+      router.back();
+    };
 
     return (
       <View
@@ -283,6 +407,11 @@ export default function UnitChatScreen() {
           isSystem && styles.systemMessageContainer,
         ]}
       >
+        <TouchableOpacity style={styles.closeButton} onPress={() => {
+          closeModal();
+        }}>
+          <Ionicons name="close" size={20} color="#A78BFA" />
+        </TouchableOpacity>
         <View
           style={[
             styles.messageBubble,
@@ -297,24 +426,29 @@ export default function UnitChatScreen() {
             </View>
           )}
           {!isUser && !isSystem ? (
-            <Markdown
-              style={{
-                body: styles.markdownBody,
-                paragraph: styles.markdownParagraph,
-                heading1: styles.markdownHeading,
-                heading2: styles.markdownHeading,
-                strong: styles.markdownBold,
-                em: styles.markdownItalic,
-                code_inline: styles.markdownCodeInline,
-                code_block: styles.markdownCodeBlock,
-                fence: styles.markdownCodeBlock,
-                list_item: styles.markdownListItem,
-                bullet_list: styles.markdownList,
-                ordered_list: styles.markdownList,
-              }}
-            >
-              {item.content}
-            </Markdown>
+            // Check if message has sources for clickable page numbers
+            item.sources && item.sources.length > 0 ? (
+              renderSourcesWithClickablePages(item.content, item.sources)
+            ) : (
+              <Markdown
+                style={{
+                  body: styles.markdownBody,
+                  paragraph: styles.markdownParagraph,
+                  heading1: styles.markdownHeading,
+                  heading2: styles.markdownHeading,
+                  strong: styles.markdownBold,
+                  em: styles.markdownItalic,
+                  code_inline: styles.markdownCodeInline,
+                  code_block: styles.markdownCodeBlock,
+                  fence: styles.markdownCodeBlock,
+                  list_item: styles.markdownListItem,
+                  bullet_list: styles.markdownList,
+                  ordered_list: styles.markdownList,
+                }}
+              >
+                {item.content}
+              </Markdown>
+            )
           ) : (
             <Text
               style={[
@@ -390,7 +524,7 @@ export default function UnitChatScreen() {
         />
 
         {/* Suggested Questions (show when no messages yet) */}
-        {messages.length === 1 && (
+        {/* {messages.length === 1 && (
           <View style={styles.suggestionsContainer}>
             <Text style={styles.suggestionsTitle}>Suggested Questions:</Text>
             {suggestedQuestions.map((question, index) => (
@@ -403,11 +537,11 @@ export default function UnitChatScreen() {
               </TouchableOpacity>
             ))}
           </View>
-        )}
+        )} */}
 
         {/* Streaming Message Display - Shows box with loading then streams content */}
         {isLoading && (
-          <View style={styles.streamingMessageContainer} key={`streaming-${streamingVersion}`}>
+          <View style={styles.streamingMessageContainer}>
             <View style={styles.streamingMessageBubble}>
               <View style={styles.aiHeader}>
                 <Ionicons name="sparkles" size={16} color="#A78BFA" />
@@ -415,25 +549,11 @@ export default function UnitChatScreen() {
               </View>
 
               {streamingContent ? (
-                <Markdown
-                  key={streamingVersion}
-                  style={{
-                    body: styles.markdownBody,
-                    paragraph: styles.markdownParagraph,
-                    heading1: styles.markdownHeading,
-                    heading2: styles.markdownHeading,
-                    strong: styles.markdownBold,
-                    em: styles.markdownItalic,
-                    code_inline: styles.markdownCodeInline,
-                    code_block: styles.markdownCodeBlock,
-                    fence: styles.markdownCodeBlock,
-                    list_item: styles.markdownListItem,
-                    bullet_list: styles.markdownList,
-                    ordered_list: styles.markdownList,
-                  }}
-                >
+                // Render as plain text during streaming for instant character-by-character display
+                // Markdown formatting will be applied after completion
+                <Text style={styles.messageText}>
                   {streamingContent}
-                </Markdown>
+                </Text>
               ) : (
                 <View style={{ paddingVertical: 12 }}>
                   <ActivityIndicator size="small" color="#A78BFA" />
@@ -739,5 +859,47 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 22,
     marginBottom: 6,
+  },
+  // Clickable sources styles
+  sourcesContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginTop: 16,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#334155',
+    alignItems: 'center',
+  },
+  sourcesLabel: {
+    fontSize: 13,
+    color: '#94A3B8',
+    fontWeight: '600',
+    marginRight: 4,
+  },
+  sourcesText: {
+    fontSize: 13,
+    color: '#94A3B8',
+    marginRight: 4,
+  },
+  pageButton: {
+    marginHorizontal: 2,
+  },
+  pageLink: {
+    fontSize: 13,
+    color: '#60A5FA', // Blue for clickable links
+    fontWeight: '600',
+    textDecorationLine: 'underline',
+  },
+  closeButton: {
+    position: 'absolute',
+    top: -8,
+    right: -8,
+    width: 28,
+    height: 28,
+    borderRadius: 20,
+    backgroundColor: 'rgba(167, 139, 250, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10,
   },
 });

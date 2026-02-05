@@ -1,6 +1,6 @@
 import { View, StyleSheet, ActivityIndicator, Text, Share, TouchableOpacity, Dimensions, Platform, Alert } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import Pdf from 'react-native-pdf';
 import { Ionicons } from '@expo/vector-icons';
 import { savedUnitsService } from '@/services/api/savedUnits.service';
@@ -14,6 +14,7 @@ export default function PdfViewerScreen() {
         buttonText?: string;
         returnTo?: string;
         siteName?: string;
+        page?: string; // NEW: Initial page to jump to
     }>();
     const router = useRouter();
     const [loading, setLoading] = useState(true);
@@ -21,6 +22,7 @@ export default function PdfViewerScreen() {
     const [currentPage, setCurrentPage] = useState(1);
     const [totalPages, setTotalPages] = useState(0);
     const [saving, setSaving] = useState(false);
+    const pdfRef = useRef<any>(null); // NEW: Ref for PDF component
 
     const pdfUrl = typeof params.url === 'string' ? params.url : '';
     const title = typeof params.title === 'string' ? params.title : 'Manual';
@@ -29,6 +31,7 @@ export default function PdfViewerScreen() {
     const isPreviewMode = mode === 'preview-to-save';
     const siteName = typeof params.siteName === 'string' ? params.siteName : '';
     const isAddingToSite = !!siteName;
+    const initialPage = params.page ? parseInt(params.page) : 1; // NEW: Parse initial page
 
     const handleShare = async () => {
         try {
@@ -134,14 +137,25 @@ export default function PdfViewerScreen() {
             )}
 
             <Pdf
+                ref={pdfRef}
                 trustAllCerts={false}
                 source={source}
+                page={initialPage}
                 style={styles.pdf}
                 onLoadComplete={(numberOfPages) => {
                     console.log(`PDF loaded with ${numberOfPages} pages`);
                     setTotalPages(numberOfPages);
+                    setCurrentPage(initialPage); // Set to initial page
                     setLoading(false);
                     setError(null);
+
+                    // Jump to page after load if not page 1
+                    if (initialPage > 1 && pdfRef.current) {
+                        console.log(`📄 Jumping to page ${initialPage}`);
+                        setTimeout(() => {
+                            pdfRef.current?.setPage(initialPage);
+                        }, 100);
+                    }
                 }}
                 onPageChanged={(page) => {
                     setCurrentPage(page);

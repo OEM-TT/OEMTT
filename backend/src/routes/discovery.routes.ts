@@ -9,6 +9,7 @@ import {
   discoverManual,
   searchWithDiscovery,
   getDiscoveryStatus,
+  getPopularSearches,
 } from '@/controllers/discovery.controller';
 
 const router = Router();
@@ -21,6 +22,14 @@ const router = Router();
  * Response: { success: boolean, manual?: { id, title, pageCount, sectionsCreated } }
  */
 router.post('/manual', authenticate, discoverManual);
+
+/**
+ * GET /api/discovery/popular
+ * Get popular searches based on actual user data
+ * 
+ * Response: { success: boolean, data: [{ displayText, oem, model, searchCount }] }
+ */
+router.get('/popular', authenticate, getPopularSearches);
 
 /**
  * GET /api/discovery/search?oem=Carrier&model=19XR

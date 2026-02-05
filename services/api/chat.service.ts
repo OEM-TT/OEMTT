@@ -24,10 +24,17 @@ export interface ChatContext {
 }
 
 export interface ChatSource {
-  title: string;
-  section: string;
-  page: string;
-  type: string;
+  title?: string;
+  section?: string;
+  page?: string;
+  type?: string;
+  manualId?: string;
+  sectionId?: string;
+  confidence?: number;
+  manualTitle?: string;
+  sectionType?: string;
+  sectionTitle?: string;
+  pageReference?: string;
 }
 
 export interface ChatStats {

@@ -62,7 +62,7 @@ function buildConversationContext(
 
   // Take last 10 messages (already filtered by controller, but double-check)
   const recentMessages = messages.slice(-10);
-  
+
   // Format for GPT
   const formattedMessages = recentMessages.map(msg => {
     const roleLabel = msg.role === 'user' ? 'User' : 'Assistant';
@@ -82,11 +82,11 @@ async function summarizeIfNeeded(context: string): Promise<string> {
   }
 
   const tokens = estimateTokens(context);
-  
+
   // If conversation history is >8K tokens, summarize it
   if (tokens > 8000) {
     console.log(`📝 Summarizing long conversation (${tokens} tokens)`);
-    
+
     try {
       const summary = await openai.chat.completions.create({
         model: 'gpt-4o-mini',
@@ -100,11 +100,11 @@ async function summarizeIfNeeded(context: string): Promise<string> {
         temperature: 0.3,
         max_tokens: 200
       });
-      
+
       const summarizedContext = summary.choices[0].message.content || context;
       const newTokens = estimateTokens(summarizedContext);
       console.log(`✅ Summarized: ${tokens} → ${newTokens} tokens`);
-      
+
       return `[Previous conversation summary: ${summarizedContext}]`;
     } catch (error) {
       console.error('Failed to summarize conversation:', error);
@@ -113,7 +113,7 @@ async function summarizeIfNeeded(context: string): Promise<string> {
       return lines.slice(-10).join('\n\n'); // Keep last ~5 exchanges
     }
   }
-  
+
   return context;
 }
 
@@ -533,12 +533,12 @@ function determineConfidenceAndSource(
     /how (do|to|can) (i|you) (check|test|measure) (voltage|amperage|resistance|continuity)/i,
     /what (is|does) (a|an) (multimeter|voltmeter|ohmmeter|ammeter)/i,
     /how (do|to|can) (i|you) use (a|an|the)? (multimeter|voltmeter)/i,
-    
+
     // HVAC theory questions
     /how (does|do) (refrigerant|hvac|ac|heat pump|compressor|condenser|evaporator) work/i,
     /what (is|does) (refrigerant|r-410a|r-22|freon|superheat|subcooling)/i,
     /explain (the )?(refrigeration cycle|hvac|heat pump)/i,
-    
+
     // General procedures
     /how (do|to|can) (i|you) (check|test|measure|troubleshoot|diagnose)/i,
     /what tools (do|should) i need/i,
@@ -555,7 +555,7 @@ function determineConfidenceAndSource(
         sourceType: 'manual' // Use manual even if not perfect match
       };
     }
-    
+
     // No good manual sections, use general knowledge
     return {
       confidence: 0.55,
@@ -917,6 +917,49 @@ Flash code [NUMBER] is a [TYPE]: [FULL DESCRIPTION]. (Page X)
 
 ## EXAMPLE INCORRECT RESPONSE (DO NOT DO THIS)
 "Flash code 74 usually indicates a high pressure issue, which is common in HVAC systems..." ❌ NO CITATION = NOT ALLOWED
+
+## FORMATTING RULES FOR MOBILE DISPLAY
+
+⚠️ **CRITICAL: DO NOT USE MARKDOWN TABLES**
+- **NEVER** create markdown tables (with | pipes) - they render poorly on mobile
+- **INSTEAD**: Present tabular data as numbered or bulleted lists
+- Example:
+  ✅ CORRECT:
+  "**Alarm Code A1:**
+  - Compressor: Y delta starter current increase
+  - Reason: If delta a mode current is not 25% greater...
+  - Action: Manual shut down, circuit shut down..."
+  
+  ❌ WRONG:
+  "| Code | Description | Reason |
+  |------|-------------|--------|
+  | A1   | Compressor  | If delta... |"
+
+- Use bold headers, bullet points, and line breaks instead
+- Make it readable on a phone screen
+
+## SOURCES FORMAT (CRITICAL - EXACTLY ONE SOURCES LINE)
+
+🚨 **MANDATORY - READ CAREFULLY:**
+
+1. **ONLY ONE "Sources:" line in your ENTIRE response** - NO EXCEPTIONS
+2. **Format EXACTLY like this:** "**Sources:** [Manual Title], Page X, Page Y, Page Z"
+3. **Example:** "**Sources:** 30XA-XW - 30XW-4T, Page 80, Page 81, Page 82"
+
+❌ **FORBIDDEN - DO NOT DO THESE:**
+- DO NOT include a book emoji (📚) anywhere in your sources
+- DO NOT create a separate "Sources:" section with an emoji
+- DO NOT repeat sources multiple times in the response
+- DO NOT add extra sections after the sources line
+- DO NOT format sources like "📚 Sources:" or "Sources (from manual):"
+
+✅ **CORRECT FORMAT:**
+
+Your complete answer goes here...
+
+**Sources:** 30XA-XW - 30XW-4T, Page 80, Page 81, Page 82
+
+That's it. Nothing more. Clean and simple. ONE sources line only.
 
 ## VERIFICATION CHECKLIST BEFORE RESPONDING
 - [ ] Is every statement backed by the manual sections above?

@@ -75,6 +75,7 @@ export interface Manual {
   publishDate?: string;
   sourceUrl?: string;
   sourceType: ManualSourceType;
+  storagePath?: string;
   fileUrl?: string;
   pageCount?: number;
   language: string;
