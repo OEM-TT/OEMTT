@@ -85,6 +85,7 @@ export default function PdfViewerScreen() {
                 params: {
                     manualConfirmed: 'true',
                     manualData: params.manualData,
+                    allManualsForModel: params.allManualsForModel, // Pass through the manuals list
                     siteName: '',
                     mode: undefined,
                 },

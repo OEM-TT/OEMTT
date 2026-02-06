@@ -92,7 +92,22 @@ export default function SiteDetailsScreen() {
           let chatHistory: any[] = [];
 
           try {
-            manuals = await modelsService.getManualsByModel(unit.modelId);
+            // Load all manuals for the model
+            const allManuals = await modelsService.getManualsByModel(unit.modelId);
+            
+            // Filter by selectedManualIds if they exist (user selected specific manuals)
+            // @ts-ignore - selectedManualIds is a JSON field from database
+            const selectedIds = unit.selectedManualIds as string[] | null;
+            
+            if (selectedIds && Array.isArray(selectedIds) && selectedIds.length > 0) {
+              console.log(`📋 Filtering ${allManuals.length} manuals by ${selectedIds.length} selected IDs for ${unit.model.modelNumber}`);
+              manuals = allManuals.filter(m => selectedIds.includes(m.id));
+              console.log(`✅ Filtered down to ${manuals.length} manuals`);
+            } else {
+              // No filter - show all manuals (backward compatibility)
+              console.log(`📋 No manual filter for ${unit.model.modelNumber}, showing all ${allManuals.length} manuals`);
+              manuals = allManuals;
+            }
           } catch (e) {
             console.error(`Manual load error for ${unit.model.modelNumber}:`, e);
           }
