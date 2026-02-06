@@ -395,9 +395,6 @@ export default function UnitChatScreen() {
       console.log('   Sources length:', item.sources?.length || 0);
     }
 
-    const closeModal = () => {
-      router.back();
-    };
 
     return (
       <View
@@ -407,11 +404,6 @@ export default function UnitChatScreen() {
           isSystem && styles.systemMessageContainer,
         ]}
       >
-        <TouchableOpacity style={styles.closeButton} onPress={() => {
-          closeModal();
-        }}>
-          <Ionicons name="close" size={20} color="#A78BFA" />
-        </TouchableOpacity>
         <View
           style={[
             styles.messageBubble,
@@ -487,6 +479,10 @@ export default function UnitChatScreen() {
     setInputText(question);
   };
 
+  const closeModal = () => {
+    router.back();
+  };
+
   return (
     <KeyboardAvoidingView
       style={styles.container}
@@ -501,6 +497,11 @@ export default function UnitChatScreen() {
       />
 
       <View style={styles.chatContainer}>
+        <TouchableOpacity style={styles.closeButton} onPress={() => {
+          closeModal();
+        }}>
+          <Ionicons name="close" size={20} color="#A78BFA" />
+        </TouchableOpacity>
         {/* Loading History Indicator */}
         {loadingHistory && (
           <View style={styles.loadingHistoryOverlay}>
@@ -892,8 +893,8 @@ const styles = StyleSheet.create({
   },
   closeButton: {
     position: 'absolute',
-    top: -8,
-    right: -8,
+    top: 8,
+    right: 8,
     width: 28,
     height: 28,
     borderRadius: 20,
