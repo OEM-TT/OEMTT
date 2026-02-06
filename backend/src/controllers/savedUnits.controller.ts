@@ -190,7 +190,7 @@ export async function createSavedUnit(
         installDate: data.installDate ? new Date(data.installDate) : null,
         location: data.location,
         notes: data.notes,
-        selectedManualIds: data.manualIds || null, // Store selected manual IDs as JSON
+        selectedManualIds: data.manualIds || undefined, // Store selected manual IDs as JSON
       },
       include: {
         model: {
