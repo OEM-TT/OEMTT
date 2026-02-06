@@ -7,7 +7,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { api } from '@/services/api';
 import { getManualPublicUrl } from '@/services/supabase';
 
-type ViewMode = 'industries' | 'brands' | 'productLines' | 'models' | 'manuals';
+type ViewMode = 'industries' | 'brands' | 'productLines' | 'models' | 'variants' | 'manuals';
 
 interface OEM {
   id: string;
@@ -34,10 +34,15 @@ interface Model {
 interface Manual {
   id: string;
   title: string;
-  type: string;
+  manualType: string;
   pageCount: number | null;
   storagePath: string;
   sourceUrl: string | null;
+}
+
+interface Variant {
+  name: string;
+  manuals: Manual[];
 }
 
 export default function CatalogScreen() {
@@ -53,12 +58,14 @@ export default function CatalogScreen() {
   const [selectedOEM, setSelectedOEM] = useState<OEM | null>(null);
   const [selectedProductLine, setSelectedProductLine] = useState<ProductLine | null>(null);
   const [selectedModel, setSelectedModel] = useState<Model | null>(null);
+  const [selectedVariant, setSelectedVariant] = useState<Variant | null>(null);
 
   // Data state
   const [industries, setIndustries] = useState<string[]>([]);
   const [oems, setOEMs] = useState<OEM[]>([]);
   const [productLines, setProductLines] = useState<ProductLine[]>([]);
   const [models, setModels] = useState<Model[]>([]);
+  const [variants, setVariants] = useState<Variant[]>([]);
   const [manuals, setManuals] = useState<Manual[]>([]);
 
   // Load industries on mount
@@ -142,7 +149,7 @@ export default function CatalogScreen() {
 
   const handleModelPress = async (model: Model) => {
     setSelectedModel(model);
-    setViewMode('manuals');
+    setViewMode('variants');
     setLoading(true);
 
     try {
@@ -150,9 +157,31 @@ export default function CatalogScreen() {
       const response: any = await api.get(`/models/${model.id}/manuals`);
       console.log('📦 Manuals response:', response.data);
       // API returns {manuals: []} structure
-      const data = response.data?.manuals || [];
-      console.log('📦 Manuals found:', data.length, data);
-      setManuals(data);
+      const allManuals = response.data?.manuals || [];
+      console.log('📦 Manuals found:', allManuals.length, allManuals);
+      
+      // Group manuals by variant (extract from title after " - ")
+      const variantMap = new Map<string, Manual[]>();
+      
+      allManuals.forEach((manual: Manual) => {
+        // Extract variant from title: "4850FE-GE - 48GE-7-12-01SI" -> "48GE-7-12-01SI"
+        const parts = manual.title.split(' - ');
+        const variantName = parts.length > 1 ? parts[1] : parts[0];
+        
+        if (!variantMap.has(variantName)) {
+          variantMap.set(variantName, []);
+        }
+        variantMap.get(variantName)!.push(manual);
+      });
+      
+      // Convert map to array of variants
+      const variantsList: Variant[] = Array.from(variantMap.entries()).map(([name, manuals]) => ({
+        name,
+        manuals,
+      }));
+      
+      console.log('📦 Variants found:', variantsList.length, variantsList);
+      setVariants(variantsList);
     } catch (error) {
       console.error('❌ Error loading manuals:', error);
     } finally {
@@ -160,24 +189,45 @@ export default function CatalogScreen() {
     }
   };
 
+  const handleVariantPress = (variant: Variant) => {
+    setSelectedVariant(variant);
+    setViewMode('manuals');
+    setManuals(variant.manuals);
+  };
+
   const handleManualPress = (manual: Manual) => {
     // Get the public URL for the PDF
     const pdfUrl = getManualPublicUrl(manual.storagePath);
 
-    // Navigate to PDF viewer
+    // Build full manual data with model context
+    const fullManualData = {
+      id: manual.id,
+      title: manual.title,
+      type: manual.type,
+      pageCount: manual.pageCount,
+      sectionsCount: manual.sectionsCount,
+      sourceUrl: manual.sourceUrl,
+      storagePath: manual.storagePath,
+      model: {
+        id: selectedModel?.id,
+        modelNumber: selectedModel?.modelNumber,
+        oem: selectedOEM?.name,
+        productLine: selectedProductLine?.name,
+      },
+    };
+
+    // Navigate to PDF viewer with all manuals for this variant
     router.push({
       pathname: '/(modals)/pdf-viewer',
       params: {
-        url: pdfUrl, // PDF viewer expects 'url' not 'pdfUrl'
+        url: pdfUrl,
         title: manual.title,
-        buttonText: 'Save Manual',
+        buttonText: 'Continue to Details',
         mode: 'preview-to-save',
-        manualData: JSON.stringify({
-          id: manual.id,
-          title: manual.title,
-          type: manual.type,
-          modelId: selectedModel?.id,
-        }),
+        returnTo: '/(modals)/add-unit',
+        manualData: JSON.stringify(fullManualData),
+        allManualsForModel: JSON.stringify(manuals), // Pass all manuals in this variant
+        siteName: '',
       },
     });
   };
@@ -192,9 +242,12 @@ export default function CatalogScreen() {
     } else if (viewMode === 'models') {
       setViewMode('productLines');
       setSelectedProductLine(null);
-    } else if (viewMode === 'manuals') {
+    } else if (viewMode === 'variants') {
       setViewMode('models');
       setSelectedModel(null);
+    } else if (viewMode === 'manuals') {
+      setViewMode('variants');
+      setSelectedVariant(null);
     }
   };
 
@@ -204,6 +257,7 @@ export default function CatalogScreen() {
     if (selectedOEM) parts.push(selectedOEM.name);
     if (selectedProductLine) parts.push(selectedProductLine.name);
     if (selectedModel) parts.push(selectedModel.modelNumber);
+    if (selectedVariant) parts.push(selectedVariant.name);
     return parts.join(' > ');
   };
 
@@ -337,6 +391,37 @@ export default function CatalogScreen() {
       );
     }
 
+    if (viewMode === 'variants') {
+      return (
+        <View style={styles.listContainer}>
+          {variants.length === 0 ? (
+            <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
+              No variants available
+            </Text>
+          ) : (
+            variants.map((variant, index) => (
+              <TouchableOpacity
+                key={`${variant.name}-${index}`}
+                style={[styles.listCard, { backgroundColor: isDark ? theme.colors.backgroundSecondary : theme.colors.white }]}
+                onPress={() => handleVariantPress(variant)}
+              >
+                <View style={[styles.iconCircle, { backgroundColor: theme.colors.accent + '15' }]}>
+                  <Ionicons name="hardware-chip-outline" size={24} color={theme.colors.accent} />
+                </View>
+                <View style={styles.listCardContent}>
+                  <Text style={[styles.listCardTitle, { color: theme.colors.text }]}>{variant.name}</Text>
+                  <Text style={[styles.manualCount, { color: theme.colors.textTertiary }]}>
+                    {variant.manuals.length} {variant.manuals.length === 1 ? 'manual' : 'manuals'}
+                  </Text>
+                </View>
+                {/* <Ionicons name="chevron-forward" size={20} color={theme.colors.textTertiary} /> */}
+              </TouchableOpacity>
+            ))
+          )}
+        </View>
+      );
+    }
+
     if (viewMode === 'manuals') {
       return (
         <View style={styles.listContainer}>
@@ -345,31 +430,37 @@ export default function CatalogScreen() {
               No manuals available
             </Text>
           ) : (
-            manuals.map((manual) => (
-              <TouchableOpacity
-                key={manual.id}
-                style={[styles.manualCard, { backgroundColor: isDark ? theme.colors.backgroundSecondary : theme.colors.white }]}
-                onPress={() => handleManualPress(manual)}
-              >
-                <View style={[styles.iconCircle, { backgroundColor: theme.colors.secondary + '15' }]}>
-                  <Ionicons name="document-text" size={24} color={theme.colors.secondary} />
-                </View>
-                <View style={styles.listCardContent}>
-                  <Text style={[styles.listCardTitle, { color: theme.colors.text }]}>{manual.title}</Text>
-                  <View style={styles.manualMeta}>
-                    <Text style={[styles.manualType, { color: theme.colors.textTertiary }]}>
-                      {manual.manualType.toUpperCase()}
-                    </Text>
-                    {manual.pageCount && (
-                      <Text style={[styles.manualPages, { color: theme.colors.textTertiary }]}>
-                        • {manual.pageCount} pages
-                      </Text>
-                    )}
+            manuals.map((manual) => {
+              // Extract just the PDF name (part after " - ")
+              const parts = manual.title.split(' - ');
+              const pdfTitle = parts.length > 1 ? parts[1] : manual.title;
+              
+              return (
+                <TouchableOpacity
+                  key={manual.id}
+                  style={[styles.manualCard, { backgroundColor: isDark ? theme.colors.backgroundSecondary : theme.colors.white }]}
+                  onPress={() => handleManualPress(manual)}
+                >
+                  <View style={[styles.iconCircle, { backgroundColor: theme.colors.secondary + '15' }]}>
+                    <Ionicons name="document-text" size={24} color={theme.colors.secondary} />
                   </View>
-                </View>
-                <Ionicons name="eye-outline" size={20} color={theme.colors.primary} />
-              </TouchableOpacity>
-            ))
+                  <View style={styles.listCardContent}>
+                    <Text style={[styles.listCardTitle, { color: theme.colors.text }]}>{pdfTitle}</Text>
+                    <View style={styles.manualMeta}>
+                      <Text style={[styles.manualType, { color: theme.colors.textTertiary }]}>
+                        {manual.manualType.toUpperCase()}
+                      </Text>
+                      {manual.pageCount && (
+                        <Text style={[styles.manualPages, { color: theme.colors.textTertiary }]}>
+                          • {manual.pageCount} pages
+                        </Text>
+                      )}
+                    </View>
+                  </View>
+                  <Ionicons name="eye-outline" size={20} color={theme.colors.primary} />
+                </TouchableOpacity>
+              );
+            })
           )}
         </View>
       );

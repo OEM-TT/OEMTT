@@ -21,6 +21,7 @@ export interface CreateSavedUnitInput {
   installDate?: string; // ISO 8601 format
   location?: string;
   notes?: string;
+  manualIds?: string[]; // Optional array of manual IDs to associate with this unit
 }
 
 export interface UpdateSavedUnitInput {

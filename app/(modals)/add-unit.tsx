@@ -62,6 +62,10 @@ export default function AddUnitModal() {
   const [location, setLocation] = useState('');
   const [notes, setNotes] = useState('');
 
+  // Manual saving options
+  const [manualSaveMode, setManualSaveMode] = useState<'single' | 'all' | 'custom'>('single');
+  const [selectedManualIds, setSelectedManualIds] = useState<string[]>([]);
+
   // Existing sites for quick selection
   const [existingSites, setExistingSites] = useState<string[]>([]);
   const [loadingExistingSites, setLoadingExistingSites] = useState(true);
@@ -132,6 +136,7 @@ export default function AddUnitModal() {
       try {
         const manual = JSON.parse(params.manualData as string);
         console.log('✅ Manual confirmed by user:', manual.model.modelNumber);
+        console.log('🔍 params.allManualsForModel:', params.allManualsForModel);
 
         if (isAddingToSite) {
           // Adding to existing site - save directly
@@ -140,13 +145,54 @@ export default function AddUnitModal() {
         } else {
           // Creating new site - show details form
           console.log('📝 Showing details form for new site');
-          handleSelectManual(manual);
+          
+          // Set selected manual and model
+          setSelectedManual(manual);
+          setSelectedModel({
+            id: manual.model.id,
+            modelNumber: manual.model.modelNumber,
+            productLine: {
+              name: manual.model.productLine,
+              oem: {
+                name: manual.model.oem,
+              },
+            },
+          });
+          
+          // Restore ALL manuals from the original search (passed via URL)
+          if (params.allManualsForModel) {
+            try {
+              const allManuals = JSON.parse(params.allManualsForModel as string);
+              console.log(`📋 Restoring ${allManuals.length} manuals from search results:`, allManuals.map((m: any) => m.title));
+              setSelectedModelForManuals({
+                model: manual.model,
+                manuals: allManuals, // Use the manuals from the select screen
+              });
+            } catch (e) {
+              console.error('❌ Failed to parse allManualsForModel:', e);
+              setSelectedModelForManuals({
+                model: manual.model,
+                manuals: [manual],
+              });
+            }
+          } else {
+            // Fallback: just show THIS manual
+            console.log('⚠️ No allManualsForModel param, showing only selected manual');
+            setSelectedModelForManuals({
+              model: manual.model,
+              manuals: [manual],
+            });
+          }
+          
+          setManualSaveMode('single');
+          setSelectedManualIds([manual.id]);
+          setStep('details');
         }
       } catch (error) {
         console.error('Failed to parse manual data:', error);
       }
     }
-  }, [params.manualConfirmed, params.manualData]);
+  }, [params.manualConfirmed, params.manualData, params.allManualsForModel]);
 
   // Handle incoming search params from search screen
   useEffect(() => {
@@ -171,6 +217,54 @@ export default function AddUnitModal() {
       // Don't auto-trigger, let user select OEM first if not already selected
     }
   }, [params.prefilledOem, params.prefilledModel, params.initialSearch, loadingOems, oems]);
+
+  // Fetch all manuals for the model when we reach details step
+  useEffect(() => {
+    async function fetchManualsForModel() {
+      if (step === 'details' && selectedModel?.id && !selectedModelForManuals) {
+        console.log('📦 Fetching manuals for model:', selectedModel.modelNumber);
+        try {
+          // Find the OEM name - try multiple sources
+          let oemName = selectedModel.productLine?.oem?.name;
+          if (!oemName && selectedOem) {
+            const oemObj = oems.find(o => o.id === selectedOem);
+            oemName = oemObj?.name;
+          }
+          
+          console.log('📦 Search params:', { model: selectedModel.modelNumber, oem: oemName });
+          
+          const result = await discoveryService.search(
+            selectedModel.modelNumber,  // model string
+            oemName || ''                // oem string
+          );
+          
+          console.log('📦 Discovery result structure:', result);
+          
+          // Handle two possible response formats:
+          // 1. Grouped format: {models: [{model: {...}, manuals: [...]}]}
+          // 2. Flat format: {manuals: [...]}
+          if (result.models && result.models.length > 0) {
+            const modelGroup = result.models.find((m: any) => m.model.id === selectedModel.id) || result.models[0];
+            console.log('📦 Found model group with manuals:', modelGroup);
+            setSelectedModelForManuals(modelGroup);
+          } else if (result.manuals && result.manuals.length > 0) {
+            // Convert flat manuals array to grouped format
+            const modelGroup = {
+              model: selectedModel,
+              manuals: result.manuals,
+              totalSections: result.manuals.reduce((sum: number, m: any) => sum + (m.sectionsCount || 0), 0),
+              totalPages: result.manuals.reduce((sum: number, m: any) => sum + (m.pageCount || 0), 0),
+            };
+            console.log('📦 Created model group from flat manuals:', modelGroup);
+            setSelectedModelForManuals(modelGroup);
+          }
+        } catch (error) {
+          console.error('❌ Error fetching manuals for model:', error);
+        }
+      }
+    }
+    fetchManualsForModel();
+  }, [step, selectedModel, selectedModelForManuals, selectedOem, oems]);
 
   // Search for models with auto-discovery
   const handleSearch = async () => {
@@ -303,6 +397,23 @@ export default function AddUnitModal() {
         },
       },
     });
+    
+    // Get all manuals for this model from the ORIGINAL search results
+    if (searchResults?.manuals) {
+      // Filter all manuals that belong to the same model
+      const manualsForThisModel = searchResults.manuals.filter((m: any) => m.model.id === manual.model.id);
+      console.log(`📋 Found ${manualsForThisModel.length} manuals for model ${manual.model.modelNumber} from search results`);
+      
+      setSelectedModelForManuals({
+        model: manual.model,
+        manuals: manualsForThisModel,
+      });
+    }
+    
+    // Initialize manual selection to just this manual
+    setManualSaveMode('single');
+    setSelectedManualIds([manual.id]);
+    
     setStep('details');
   };
 
@@ -320,6 +431,7 @@ export default function AddUnitModal() {
       await savedUnitsService.create({
         modelId: manual.model.id,
         nickname: params.siteName, // Use the existing site name
+        manualIds: selectedManualIds.length > 0 ? selectedManualIds : undefined, // Pass selected manual IDs
         // No serial, location, or notes - just add the model
       });
 
@@ -349,6 +461,12 @@ export default function AddUnitModal() {
       return;
     }
 
+    // Validate manual selection if in custom mode
+    if (manualSaveMode === 'custom' && selectedManualIds.length === 0) {
+      Alert.alert('No Manuals Selected', 'Please select at least one manual or choose a different option.');
+      return;
+    }
+
     setLoading(true);
     try {
       await savedUnitsService.create({
@@ -357,6 +475,7 @@ export default function AddUnitModal() {
         serialNumber: serialNumber.trim() || undefined,
         location: location.trim() || undefined,
         notes: notes.trim() || undefined,
+        manualIds: selectedManualIds.length > 0 ? selectedManualIds : undefined, // Pass selected manual IDs
       });
 
       // Close all modals and return to library
@@ -582,7 +701,7 @@ export default function AddUnitModal() {
                   const publicUrl = getManualPublicUrl(pdfPath);
 
                   // Navigate to PDF viewer in preview mode with appropriate button text
-                  // Pass manual data as serialized JSON so we can recover it if button is pressed
+                  // Pass manual data AND all manuals so we can restore the list on return
                   router.push({
                     pathname: '/(modals)/pdf-viewer',
                     params: {
@@ -592,6 +711,7 @@ export default function AddUnitModal() {
                       buttonText: isAddingToSite ? 'Add this model to my site' : 'Continue to Details',
                       returnTo: '/(modals)/add-unit', // Where to go back to
                       manualData: JSON.stringify(manual), // Pass manual data for confirmation
+                      allManualsForModel: JSON.stringify(manuals), // Pass ALL manuals to restore list
                       siteName: params.siteName || '', // Pass through site name if adding to existing site
                     },
                   });
@@ -634,7 +754,16 @@ export default function AddUnitModal() {
   };
 
   // Render step 3: Unit details
-  const renderDetailsStep = () => (
+  const renderDetailsStep = () => {
+    const allManuals = selectedModelForManuals?.manuals || [];
+    const modelNumber = selectedModel?.modelNumber || '';
+    
+    console.log('🎨 Rendering details step');
+    console.log('📦 selectedModelForManuals:', selectedModelForManuals);
+    console.log('📦 allManuals count:', allManuals.length);
+    console.log('📦 selectedManual:', selectedManual);
+    
+    return (
     <>
 
 
@@ -644,6 +773,127 @@ export default function AddUnitModal() {
       </Text> */}
 
       <ScrollView style={styles.formScroll} showsVerticalScrollIndicator={false}>
+        {/* Manual Saving Options */}
+        {allManuals.length > 1 && (
+          <View style={[styles.manualOptionsCard, { backgroundColor: isDark ? theme.colors.backgroundSecondary : theme.colors.white }]}>
+            <Text style={[styles.manualOptionsTitle, { color: theme.colors.text }]}>
+              Which manuals would you like to save?
+            </Text>
+            
+            {/* Save just this manual */}
+            <TouchableOpacity
+              style={[
+                styles.manualOptionButton,
+                { borderColor: theme.colors.border },
+                manualSaveMode === 'single' && { backgroundColor: theme.colors.primary + '10', borderColor: theme.colors.primary }
+              ]}
+              onPress={() => {
+                setManualSaveMode('single');
+                setSelectedManualIds([selectedManual?.id]);
+              }}
+            >
+              <Ionicons 
+                name={manualSaveMode === 'single' ? "radio-button-on" : "radio-button-off"} 
+                size={20} 
+                color={manualSaveMode === 'single' ? theme.colors.primary : theme.colors.textTertiary} 
+              />
+              <View style={styles.manualOptionContent}>
+                <Text style={[styles.manualOptionText, { color: theme.colors.text }]}>
+                  Just this manual
+                </Text>
+                <Text style={[styles.manualOptionSubtext, { color: theme.colors.textSecondary }]}>
+                  {selectedManual?.title}
+                </Text>
+              </View>
+            </TouchableOpacity>
+
+            {/* Save all manuals */}
+            <TouchableOpacity
+              style={[
+                styles.manualOptionButton,
+                { borderColor: theme.colors.border },
+                manualSaveMode === 'all' && { backgroundColor: theme.colors.primary + '10', borderColor: theme.colors.primary }
+              ]}
+              onPress={() => {
+                setManualSaveMode('all');
+                setSelectedManualIds(allManuals.map((m: any) => m.id));
+              }}
+            >
+              <Ionicons 
+                name={manualSaveMode === 'all' ? "radio-button-on" : "radio-button-off"} 
+                size={20} 
+                color={manualSaveMode === 'all' ? theme.colors.primary : theme.colors.textTertiary} 
+              />
+              <View style={styles.manualOptionContent}>
+                <Text style={[styles.manualOptionText, { color: theme.colors.text }]}>
+                  All manuals for {modelNumber}
+                </Text>
+                <Text style={[styles.manualOptionSubtext, { color: theme.colors.textSecondary }]}>
+                  {allManuals.length} manuals
+                </Text>
+              </View>
+            </TouchableOpacity>
+
+            {/* Select specific manuals */}
+            <TouchableOpacity
+              style={[
+                styles.manualOptionButton,
+                { borderColor: theme.colors.border },
+                manualSaveMode === 'custom' && { backgroundColor: theme.colors.primary + '10', borderColor: theme.colors.primary }
+              ]}
+              onPress={() => {
+                setManualSaveMode('custom');
+                // Keep current selection
+              }}
+            >
+              <Ionicons 
+                name={manualSaveMode === 'custom' ? "radio-button-on" : "radio-button-off"} 
+                size={20} 
+                color={manualSaveMode === 'custom' ? theme.colors.primary : theme.colors.textTertiary} 
+              />
+              <View style={styles.manualOptionContent}>
+                <Text style={[styles.manualOptionText, { color: theme.colors.text }]}>
+                  Select specific manuals
+                </Text>
+                <Text style={[styles.manualOptionSubtext, { color: theme.colors.textSecondary }]}>
+                  Choose which ones to save
+                </Text>
+              </View>
+            </TouchableOpacity>
+
+            {/* Show manual checkboxes if custom mode */}
+            {manualSaveMode === 'custom' && (
+              <View style={styles.manualChecklistContainer}>
+                {allManuals.map((manual: any) => {
+                  const isSelected = selectedManualIds.includes(manual.id);
+                  return (
+                    <TouchableOpacity
+                      key={manual.id}
+                      style={[styles.manualCheckItem, { borderColor: theme.colors.border }]}
+                      onPress={() => {
+                        if (isSelected) {
+                          setSelectedManualIds(selectedManualIds.filter(id => id !== manual.id));
+                        } else {
+                          setSelectedManualIds([...selectedManualIds, manual.id]);
+                        }
+                      }}
+                    >
+                      <Ionicons 
+                        name={isSelected ? "checkbox" : "square-outline"} 
+                        size={20} 
+                        color={isSelected ? theme.colors.primary : theme.colors.textTertiary} 
+                      />
+                      <Text style={[styles.manualCheckText, { color: theme.colors.text }]} numberOfLines={1}>
+                        {manual.title}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            )}
+          </View>
+        )}
+
         {/* Check if adding to existing site */}
         {nickname && existingSites.includes(nickname) ? (
           <>
@@ -786,7 +1036,8 @@ export default function AddUnitModal() {
         )}
       </ScrollView>
     </>
-  );
+    );
+  };
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]} edges={['top']}>
@@ -1088,5 +1339,53 @@ const createStyles = (theme: any) =>
       marginTop: theme.spacing.sm,
       textAlign: 'center',
       lineHeight: 20,
+    },
+    manualOptionsCard: {
+      padding: theme.spacing.lg,
+      borderRadius: theme.borderRadius.lg,
+      marginBottom: theme.spacing.lg,
+      ...theme.shadows.sm,
+    },
+    manualOptionsTitle: {
+      fontSize: 16,
+      fontWeight: '600',
+      marginBottom: theme.spacing.md,
+    },
+    manualOptionButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      padding: theme.spacing.md,
+      borderRadius: theme.borderRadius.md,
+      borderWidth: 1,
+      marginBottom: theme.spacing.sm,
+      gap: theme.spacing.sm,
+    },
+    manualOptionContent: {
+      flex: 1,
+    },
+    manualOptionText: {
+      fontSize: 15,
+      fontWeight: '500',
+      marginBottom: 2,
+    },
+    manualOptionSubtext: {
+      fontSize: 13,
+    },
+    manualChecklistContainer: {
+      marginTop: theme.spacing.sm,
+      paddingLeft: theme.spacing.sm,
+    },
+    manualCheckItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      padding: theme.spacing.sm,
+      borderRadius: theme.borderRadius.md,
+      borderWidth: 1,
+      marginBottom: theme.spacing.xs,
+      gap: theme.spacing.sm,
+    },
+    manualCheckText: {
+      flex: 1,
+      fontSize: 14,
     },
   });

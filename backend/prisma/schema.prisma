@@ -135,19 +135,20 @@ model ManualSection {
 }
 
 model SavedUnit {
-  id            String          @id @default(uuid())
-  userId        String          @map("user_id")
-  modelId       String          @map("model_id")
-  nickname      String
-  serialNumber  String?         @map("serial_number")
-  installDate   DateTime?       @map("install_date")
-  location      String?
-  notes         String?
-  createdAt     DateTime        @default(now()) @map("created_at")
-  updatedAt     DateTime        @updatedAt @map("updated_at")
-  chat_sessions chat_sessions[]
-  model         Model           @relation(fields: [modelId], references: [id], onDelete: Cascade)
-  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                String          @id @default(uuid())
+  userId            String          @map("user_id")
+  modelId           String          @map("model_id")
+  nickname          String
+  serialNumber      String?         @map("serial_number")
+  installDate       DateTime?       @map("install_date")
+  location          String?
+  notes             String?
+  selectedManualIds Json?           @map("selected_manual_ids")
+  createdAt         DateTime        @default(now()) @map("created_at")
+  updatedAt         DateTime        @updatedAt @map("updated_at")
+  chat_sessions     chat_sessions[]
+  model             Model           @relation(fields: [modelId], references: [id], onDelete: Cascade)
+  user              User            @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([modelId])

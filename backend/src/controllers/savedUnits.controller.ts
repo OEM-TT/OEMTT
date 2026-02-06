@@ -12,6 +12,7 @@ const createSavedUnitSchema = z.object({
   installDate: z.string().datetime().optional(),
   location: z.string().max(255).optional(),
   notes: z.string().optional(),
+  manualIds: z.array(z.string().uuid()).optional(), // Array of manual IDs to associate
 });
 
 // Validation schema for updating a saved unit
@@ -189,6 +190,7 @@ export async function createSavedUnit(
         installDate: data.installDate ? new Date(data.installDate) : null,
         location: data.location,
         notes: data.notes,
+        selectedManualIds: data.manualIds || null, // Store selected manual IDs as JSON
       },
       include: {
         model: {
