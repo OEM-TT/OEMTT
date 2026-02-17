@@ -91,7 +91,18 @@ export async function discoverAndIngestManual(
 
     console.log('⚠️  Manual not found in database');
 
+    // 🚨 TEMPORARILY DISABLED: Perplexity discovery (manually loading manuals)
+    // We'll notify users when the manual becomes available
+    console.log('📋 Perplexity discovery is currently disabled (manual uploads only)');
+    return {
+      success: false,
+      message: "We don't have this manual yet, but we're working on adding it! We'll notify you when it becomes available.",
+      error: 'Manual not currently in database. Automatic discovery is temporarily disabled.',
+    };
+
     // Step 2: Search for manuals using Perplexity (find up to 5)
+    // DISABLED - Uncomment to re-enable automatic discovery
+    /* 
     console.log('\n🔍 Step 2: Searching with Perplexity...');
     const searchResult = await findAllManuals(oem, modelNumber);
 
@@ -239,6 +250,7 @@ export async function discoverAndIngestManual(
       manualId: ingestedManuals[0].id,
       manual: ingestedManuals[0],
     };
+    */
   } catch (error: any) {
     console.error('\n❌ AUTO-INGEST FAILED:', error.message);
     console.error('='.repeat(60));

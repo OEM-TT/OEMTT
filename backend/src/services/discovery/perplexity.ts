@@ -611,3 +611,83 @@ export async function verifyPDF(url: string): Promise<PDFVerification> {
     return { valid: false, error: error.message };
   }
 }
+
+/**
+ * Answer a question using Perplexity web search
+ * Used as fallback when manual content doesn't have the answer
+ * 
+ * @param question - User's question
+ * @param context - Additional context (unit info, model, etc.)
+ * @returns AI-generated answer with sources
+ */
+export async function answerWithWebSearch(
+  question: string,
+  context: {
+    oem: string;
+    modelNumber: string;
+    unitInfo?: string;
+  }
+): Promise<{ answer: string; sources: string[] }> {
+  if (!PERPLEXITY_API_KEY) {
+    throw new Error('PERPLEXITY_API_KEY not configured');
+  }
+
+  console.log(`🌐 Perplexity Web Search: "${question.substring(0, 60)}..."`);
+
+  // Build context-aware prompt
+  const contextInfo = `Equipment Context: ${context.oem} ${context.modelNumber}${context.unitInfo ? `\n${context.unitInfo}` : ''}`;
+  
+  const prompt = `${contextInfo}
+
+Question: ${question}
+
+Please provide a detailed, technically accurate answer for this HVAC/commercial equipment question. Focus on:
+1. Practical troubleshooting and maintenance advice
+2. Safety considerations
+3. Industry best practices
+4. Manufacturer-specific information when available
+
+Be concise but comprehensive. Include specific technical details and procedures where relevant.`;
+
+  try {
+    const response = await axios.post(
+      PERPLEXITY_API_URL,
+      {
+        model: 'sonar', // Fast, real-time web search model
+        messages: [
+          {
+            role: 'system',
+            content: 'You are an expert HVAC technician and service engineer with deep knowledge of commercial equipment. Provide accurate, practical answers based on current information from the web. Always prioritize safety and manufacturer guidelines.',
+          },
+          {
+            role: 'user',
+            content: prompt,
+          },
+        ],
+        temperature: 0.3,
+        max_tokens: 1500,
+        return_citations: true,
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${PERPLEXITY_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        timeout: 30000, // 30 seconds
+      }
+    );
+
+    const answer = response.data.choices[0]?.message?.content || 'No answer available';
+    const citations = response.data.citations || [];
+
+    console.log(`✅ Perplexity answered (${answer.length} chars, ${citations.length} sources)`);
+
+    return {
+      answer,
+      sources: citations,
+    };
+  } catch (error: any) {
+    console.error('❌ Perplexity API error:', error.response?.data || error.message);
+    throw new Error('Failed to get answer from web search');
+  }
+}

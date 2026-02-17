@@ -17,6 +17,7 @@ import {
   Platform,
   Alert,
   ActivityIndicator,
+  Linking,
 } from 'react-native';
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -274,19 +275,144 @@ export default function UnitChatScreen() {
     }
   };
 
+  // Render web sources with clickable URLs
+  const renderWebSources = (content: string) => {
+    // Check if this has web sources
+    const webSourcesMatch = content.match(/\*\*Sources \(from web\):\*\*\n([\s\S]+?)(?:\n\n|$)/);
+    
+    if (!webSourcesMatch) {
+      // No web sources, use regular rendering
+      return null;
+    }
+
+    const beforeSources = content.substring(0, webSourcesMatch.index);
+    const sourcesSection = webSourcesMatch[1];
+    const afterSources = content.substring(webSourcesMatch.index! + webSourcesMatch[0].length);
+
+    // Parse numbered URLs
+    const urlPattern = /(\d+)\.\s+(https?:\/\/[^\s]+)/g;
+    const urls: Array<{ number: string; url: string }> = [];
+    let match;
+
+    while ((match = urlPattern.exec(sourcesSection)) !== null) {
+      urls.push({ number: match[1], url: match[2] });
+    }
+
+    return (
+      <View>
+        {/* Content before sources */}
+        <Markdown
+          style={{
+            body: styles.markdownBody,
+            paragraph: styles.markdownParagraph,
+            heading1: styles.markdownHeading,
+            heading2: styles.markdownHeading,
+            strong: styles.markdownBold,
+            em: styles.markdownItalic,
+            code_inline: styles.markdownCodeInline,
+            code_block: styles.markdownCodeBlock,
+            fence: styles.markdownCodeBlock,
+            list_item: styles.markdownListItem,
+            bullet_list: styles.markdownList,
+            ordered_list: styles.markdownList,
+          }}
+        >
+          {beforeSources}
+        </Markdown>
+
+        {/* Web sources with clickable links */}
+        <View style={styles.webSourcesContainer}>
+          <Text style={[styles.sourcesLabel, { marginBottom: 8 }]}>Sources (from web):</Text>
+          {urls.map((item, index) => (
+            <TouchableOpacity
+              key={index}
+              onPress={async () => {
+                try {
+                  const canOpen = await Linking.canOpenURL(item.url);
+                  if (canOpen) {
+                    await Linking.openURL(item.url);
+                  } else {
+                    Alert.alert('Error', 'Cannot open this URL');
+                  }
+                } catch (error) {
+                  Alert.alert('Error', 'Failed to open URL');
+                }
+              }}
+              style={styles.webSourceLink}
+            >
+              <Text style={styles.webSourceNumber}>{item.number}.</Text>
+              <Text style={styles.webSourceUrl} numberOfLines={2}>
+                {item.url}
+              </Text>
+              <Ionicons name="open-outline" size={16} color="#60A5FA" style={{ marginLeft: 4 }} />
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {/* Content after sources (if any) */}
+        {afterSources && (
+          <Markdown
+            style={{
+              body: styles.markdownBody,
+              paragraph: styles.markdownParagraph,
+              heading1: styles.markdownHeading,
+              heading2: styles.markdownHeading,
+              strong: styles.markdownBold,
+              em: styles.markdownItalic,
+              code_inline: styles.markdownCodeInline,
+              code_block: styles.markdownCodeBlock,
+              fence: styles.markdownCodeBlock,
+              list_item: styles.markdownListItem,
+              bullet_list: styles.markdownList,
+              ordered_list: styles.markdownList,
+            }}
+          >
+            {afterSources}
+          </Markdown>
+        )}
+      </View>
+    );
+  };
+
   // Render sources with clickable page numbers
   const renderSourcesWithClickablePages = (content: string, sources?: chatService.ChatSource[]) => {
     console.log('🔍 renderSourcesWithClickablePages called');
     console.log('   Sources data:', JSON.stringify(sources));
     console.log('   Content length:', content.length);
 
+    // Check for web sources first
+    const webSourcesRendering = renderWebSources(content);
+    if (webSourcesRendering) {
+      return webSourcesRendering;
+    }
+
     // Extract the sources line from the content
     const sourcesMatch = content.match(/\*\*Sources:\*\*(.+?)(?:\n|$)/);
     console.log('   Sources match:', sourcesMatch);
 
     if (!sourcesMatch) {
-      console.log('   ❌ No sources match in content, returning original');
-      return content; // Return original if no sources found
+      console.log('   ❌ No sources match in content, returning original with Markdown');
+      // Return wrapped in Markdown component (React Native requires all text in components)
+      return (
+        <Markdown
+          style={{
+            body: styles.markdownBody,
+            paragraph: styles.markdownParagraph,
+            heading1: styles.markdownHeading,
+            heading2: styles.markdownHeading,
+            strong: styles.markdownBold,
+            em: styles.markdownItalic,
+            code_inline: styles.markdownCodeInline,
+            code_block: styles.markdownCodeBlock,
+            fence: styles.markdownCodeBlock,
+            list_item: styles.markdownListItem,
+            bullet_list: styles.markdownList,
+            ordered_list: styles.markdownList,
+          }}
+        >
+          {content}
+        </Markdown>
+      );
     }
 
     const beforeSources = content.substring(0, sourcesMatch.index);
@@ -889,6 +1015,37 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#60A5FA', // Blue for clickable links
     fontWeight: '600',
+    textDecorationLine: 'underline',
+  },
+  // Web sources styles (for Perplexity results)
+  webSourcesContainer: {
+    marginTop: 16,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#334155',
+  },
+  webSourceLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    marginVertical: 4,
+    backgroundColor: 'rgba(96, 165, 250, 0.1)',
+    borderRadius: 8,
+    borderLeftWidth: 3,
+    borderLeftColor: '#60A5FA',
+  },
+  webSourceNumber: {
+    fontSize: 13,
+    color: '#60A5FA',
+    fontWeight: '600',
+    marginRight: 8,
+    minWidth: 20,
+  },
+  webSourceUrl: {
+    flex: 1,
+    fontSize: 12,
+    color: '#60A5FA',
     textDecorationLine: 'underline',
   },
   closeButton: {
