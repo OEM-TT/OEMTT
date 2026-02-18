@@ -27,6 +27,7 @@ export interface ChatSource {
   title?: string;
   section?: string;
   page?: string;
+  pageReference?: string;
   type?: string;
   manualId?: string;
   sectionId?: string;

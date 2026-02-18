@@ -231,6 +231,7 @@ export async function askQuestion(req: AuthRequest, res: Response) {
             sessionId: sessionId,
             totalTokens: 0,
             source: 'web_search',
+            sources: webResult.sources.slice(0, 3), // ADD THIS - send web URLs as sources
           });
         }
 
@@ -377,6 +378,7 @@ export async function askQuestion(req: AuthRequest, res: Response) {
         section: s.sectionTitle,
         page: s.pageReference,
         type: s.sectionType,
+        manualId: s.manualId,  // ADD THIS - needed for frontend to open PDF
       })),
     });
 

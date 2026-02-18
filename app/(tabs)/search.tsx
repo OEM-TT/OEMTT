@@ -434,7 +434,9 @@ export default function SearchScreen() {
               <View style={styles.modelCardContent}>
                 <Text style={[styles.modelNumber, { color: theme.colors.text }]}>{model.modelNumber}</Text>
                 <Text style={[styles.modelOem, { color: theme.colors.textSecondary }]}>
-                  {model.model.oem} • {model.model.productLine}
+                  {model.model.oem}
+                  {model.model.category && ` • ${model.model.category}`}
+                  {model.model.productLine && ` • ${model.model.productLine}`}
                 </Text>
                 <Text style={[styles.modelManualCount, { color: theme.colors.textTertiary }]}>
                   {model.manuals.length} {model.manuals.length === 1 ? 'manual' : 'manuals'}
@@ -462,7 +464,9 @@ export default function SearchScreen() {
           <View style={styles.resultsHeaderContent}>
             <Text style={[styles.resultsTitle, { color: theme.colors.text }]}>{selectedModel.modelNumber}</Text>
             <Text style={[styles.resultsSubtitle, { color: theme.colors.textSecondary }]}>
-              {selectedModel.model.oem} • {selectedModel.model.productLine}
+              {selectedModel.model.oem}
+              {selectedModel.model.category && ` • ${selectedModel.model.category}`}
+              {selectedModel.model.productLine && ` • ${selectedModel.model.productLine}`}
             </Text>
           </View>
         </View>

@@ -31,7 +31,8 @@ interface Message {
   role: 'user' | 'assistant' | 'system';
   content: string;
   timestamp: Date;
-  sources?: chatService.ChatSource[]; // Store sources for clickable pages
+  sources?: chatService.ChatSource[] | string[]; // Store sources (manual pages or web URLs)
+  webSources?: string[]; // Deprecated: use sources instead
 }
 
 export default function UnitChatScreen() {

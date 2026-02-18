@@ -123,6 +123,7 @@ export async function searchWithDiscovery(req: AuthRequest, res: Response) {
                         modelNumber: m.model.modelNumber,
                         oem: m.model.productLine.oem.name,
                         productLine: m.model.productLine.name,
+                        category: m.model.productLine.category,
                     },
                 })),
             });
