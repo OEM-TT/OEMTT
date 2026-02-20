@@ -28,6 +28,7 @@ model User {
   questions           Question[]
   savedUnits          SavedUnit[]
   searches            Search[]
+  modelRequests       ModelRequest[]
 
   @@index([email])
   @@index([supabaseUserId])
@@ -285,4 +286,25 @@ model Search {
   @@index([searchType])
   @@index([createdAt])
   @@map("searches")
+}
+
+model ModelRequest {
+  id              String    @id @default(uuid())
+  userId          String?   @map("user_id")
+  oemName         String?   @map("oem_name") @db.VarChar(100)
+  modelNumber     String    @map("model_number") @db.VarChar(100)
+  searchQuery     String?   @map("search_query")
+  status          String    @default("pending") @db.VarChar(50)
+  priority        Int       @default(0)
+  notes           String?
+  requestCount    Int       @default(1) @map("request_count")
+  lastRequestedAt DateTime  @default(now()) @map("last_requested_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  user            User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([status])
+  @@index([oemName, modelNumber])
+  @@index([createdAt])
+  @@map("model_requests")
 }

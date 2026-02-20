@@ -10,6 +10,8 @@ import ingestionRoutes from './ingestion.routes';
 import chatRoutes from './chat.routes';
 import discoveryRoutes from './discovery.routes';
 import analyticsRoutes from './analytics.routes';
+import taxonomyRoutes from './taxonomy.routes';
+import modelRequestsRoutes from './modelRequests.routes';
 
 const router = Router();
 
@@ -25,6 +27,8 @@ router.use('/ingestion', ingestionRoutes);
 router.use('/chat', chatRoutes);
 router.use('/discovery', discoveryRoutes);
 router.use('/analytics', analyticsRoutes);
+router.use('/taxonomy', taxonomyRoutes);
+router.use('/model-requests', modelRequestsRoutes);
 
 // API info endpoint
 router.get('/', (req, res) => {

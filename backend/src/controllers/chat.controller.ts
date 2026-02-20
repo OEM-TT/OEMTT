@@ -210,7 +210,7 @@ export async function askQuestion(req: AuthRequest, res: Response) {
             sessionId = session.id;
           }
 
-          // Save the question and answer
+          // Save the question and answer with Perplexity usage data
           await prisma.question.create({
             data: {
               userId: dbUser.id,
@@ -220,18 +220,24 @@ export async function askQuestion(req: AuthRequest, res: Response) {
               questionText: currentQuestion,
               answerText: fullAnswer,
               answerSources: webResult.sources.slice(0, 3).map(s => ({ url: s })),
+              inputTokens: webResult.usage.inputTokens,
+              outputTokens: webResult.usage.outputTokens,
+              totalTokens: webResult.usage.totalTokens,
+              estimatedCost: webResult.usage.cost,
               context: {
                 source: 'web_search',
                 confidence: context.confidence,
+                provider: 'perplexity',
               },
             },
           });
 
           sendEvent('complete', {
             sessionId: sessionId,
-            totalTokens: 0,
+            totalTokens: webResult.usage.totalTokens,
+            cost: webResult.usage.cost,
             source: 'web_search',
-            sources: webResult.sources.slice(0, 3), // ADD THIS - send web URLs as sources
+            sources: webResult.sources.slice(0, 3),
           });
         }
 

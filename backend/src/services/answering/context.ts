@@ -562,15 +562,15 @@ function determineConfidenceAndSource(
   }
 
   // TIER 1: Manual content (high confidence)
-  // Raised threshold from 0.65 to 0.7 to be more strict about using manual content
-  if (sections.length > 0 && sections[0].similarity > 0.70) {
+  // Raised threshold from 0.70 to 0.80 for stricter manual content matching
+  if (sections.length > 0 && sections[0].similarity > 0.80) {
     return {
       confidence: sections[0].similarity,
       sourceType: 'manual'
     };
   }
 
-  // TIER 2: General HVAC/electrical knowledge patterns
+  // TIER 2: General HVAC/electrical knowledge (medium-high confidence)
   const generalPatterns = [
     // Electrical questions
     /how (do|to|can) (i|you) (check|test|measure) (voltage|amperage|resistance|continuity)/i,
@@ -590,25 +590,24 @@ function determineConfidenceAndSource(
 
   const isGeneralQuestion = generalPatterns.some(p => p.test(question));
 
-  if (isGeneralQuestion) {
-    // Still have some manual sections (medium-high confidence)
-    // Adjusted threshold from 0.50 to 0.60 for better quality
-    if (sections.length > 0 && sections[0].similarity > 0.60) {
-      return {
-        confidence: 0.65,
-        sourceType: 'manual' // Use manual even if not perfect match
-      };
-    }
-
-    // No good manual sections, use general knowledge
+  // Check if we have decent manual content (0.75-0.80 range)
+  if (sections.length > 0 && sections[0].similarity > 0.75) {
     return {
-      confidence: 0.60,
+      confidence: sections[0].similarity,
+      sourceType: 'general_knowledge' // Use general knowledge tier with manual support
+    };
+  }
+
+  if (isGeneralQuestion) {
+    // General question - use general knowledge confidently
+    return {
+      confidence: 0.75,
       sourceType: 'general_knowledge'
     };
   }
 
   // TIER 3: Needs web search (low confidence)
-  // Model-specific question but no manual sections and not general knowledge
+  // Model-specific question but no good manual sections and not general knowledge
   return {
     confidence: 0.30,
     sourceType: 'needs_web_search'
@@ -886,6 +885,83 @@ User: "Unit making strange noise"
 - For specific queries (codes, specs), extract ALL details
 - For broad queries, synthesize and summarize
 - Cite sources for all specific claims
+
+🚨 **RULE 5: SAFETY - WATCH FOR DANGEROUS ACTIONS**
+
+**CRITICAL SAFETY WARNINGS - ALWAYS ENFORCE:**
+
+You MUST identify and warn about dangerous actions. If the user asks about or implies any of the following, **IMMEDIATELY** provide a strong safety warning:
+
+**⚡ ELECTRICAL HAZARDS:**
+- Working on live electrical circuits without proper lockout/tagout
+- Touching electrical components with power on
+- Working in wet conditions with electrical equipment
+- Bypassing safety interlocks or disconnects
+- Measuring voltage without proper PPE
+
+**WARNING TEMPLATE:**
+"⚠️ **SAFETY WARNING**: [Action] involves working with [hazard]. Before proceeding:
+1. Turn off all power at the breaker/disconnect
+2. Verify power is off with a multimeter
+3. Use proper PPE (insulated gloves, safety glasses)
+4. Follow NFPA 70E guidelines
+5. If you're not trained in electrical work, contact a licensed electrician."
+
+**🔥 REFRIGERANT HAZARDS:**
+- Venting refrigerant to atmosphere (illegal, environmental damage)
+- Working with refrigerant without EPA certification
+- Mixing refrigerant types
+- Improper handling of high-pressure systems
+- Working on systems without recovering refrigerant first
+
+**WARNING TEMPLATE:**
+"⚠️ **SAFETY & LEGAL WARNING**: [Action] requires EPA Section 608 certification. Venting refrigerant is illegal (Clean Air Act violations, fines up to $37,500/day). You MUST:
+1. Have valid EPA 608 certification
+2. Use proper recovery equipment
+3. Follow EPA regulations
+4. Never mix refrigerant types
+5. Wear safety glasses and gloves when handling refrigerant."
+
+**🔥 COMBUSTION/GAS HAZARDS:**
+- Working on gas lines or connections
+- Testing for gas leaks with open flame
+- Ignition system troubleshooting without proper procedures
+- Ventilation system modifications
+
+**WARNING TEMPLATE:**
+"⚠️ **DANGER - GAS HAZARD**: [Action] involves natural gas/propane. STOP immediately if you smell gas. Required steps:
+1. Turn off gas supply at the meter/tank
+2. Ventilate the area
+3. Never use open flames to test for leaks
+4. Use electronic leak detectors or soap solution only
+5. Contact a licensed gas technician if unsure."
+
+**⚠️ PRESSURE HAZARDS:**
+- Opening refrigerant lines under pressure
+- Working on compressors without depressurizing
+- Removing pressure relief valves
+
+**WARNING TEMPLATE:**
+"⚠️ **HIGH PRESSURE WARNING**: [Action] involves pressurized refrigerant (up to 400+ PSI). Before proceeding:
+1. Recover all refrigerant using EPA-approved equipment
+2. Verify system is at 0 PSI
+3. Wear safety glasses and gloves
+4. Never heat refrigerant lines
+5. System must be completely depressurized."
+
+**🔧 MECHANICAL HAZARDS:**
+- Working on rotating equipment (fans, compressors) while running
+- Removing guards or safety devices
+- Working on equipment at height without fall protection
+
+**WARNING TEMPLATE:**
+"⚠️ **MECHANICAL HAZARD**: [Action] involves [hazard]. Required safety steps:
+1. Lock out and tag out all power sources
+2. Verify all rotating parts have stopped
+3. Install guards before operation
+4. Use proper fall protection if working at height."
+
+**ALWAYS prioritize safety over speed. If unsure, ALWAYS recommend calling a licensed professional.**
 
 ## READING FLASH CODE TABLES (CRITICAL - FOLLOW EXACTLY)
 

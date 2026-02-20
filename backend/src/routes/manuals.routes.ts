@@ -1,15 +1,38 @@
 import { Router } from 'express';
-import { getManualById, getManualSections, searchManualSections } from '../controllers/manuals.controller';
+import multer from 'multer';
+import { 
+  getManualById, 
+  getManualSections, 
+  searchManualSections,
+  uploadManual,
+  getManualStatus,
+} from '../controllers/manuals.controller';
 import { authenticate } from '../middleware/auth';
 
 const router = Router();
 
-// All manual routes require authentication
-router.use(authenticate);
+// Configure multer for file uploads (store in memory)
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 50 * 1024 * 1024, // 50MB max
+  },
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype === 'application/pdf') {
+      cb(null, true);
+    } else {
+      cb(new Error('Only PDF files are allowed'));
+    }
+  },
+});
 
-// Manual routes
-router.get('/search-sections', searchManualSections);
-router.get('/:id', getManualById);
-router.get('/:id/sections', getManualSections);
+// Public routes (for dashboard)
+router.post('/upload', upload.single('pdf'), uploadManual);
+router.get('/:id/status', getManualStatus);
+
+// Protected routes (require authentication)
+router.get('/search-sections', authenticate, searchManualSections);
+router.get('/:id', authenticate, getManualById);
+router.get('/:id/sections', authenticate, getManualSections);
 
 export default router;

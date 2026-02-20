@@ -280,7 +280,7 @@ export default function UnitChatScreen() {
   const renderWebSources = (content: string) => {
     // Check if this has web sources
     const webSourcesMatch = content.match(/\*\*Sources \(from web\):\*\*\n([\s\S]+?)(?:\n\n|$)/);
-    
+
     if (!webSourcesMatch) {
       // No web sources, use regular rendering
       return null;
@@ -547,7 +547,11 @@ export default function UnitChatScreen() {
           {!isUser && !isSystem ? (
             // Check if message has sources for clickable page numbers
             item.sources && item.sources.length > 0 ? (
-              renderSourcesWithClickablePages(item.content, item.sources)
+              renderSourcesWithClickablePages(
+                item.content,
+                // Pass ChatSource[] if sources are objects, undefined if they're strings (web sources)
+                typeof item.sources[0] === 'string' ? undefined : item.sources as chatService.ChatSource[]
+              )
             ) : (
               <Markdown
                 style={{

@@ -1,4 +1,4 @@
-import { View, StyleSheet, ActivityIndicator, Text, Share, TouchableOpacity, Dimensions, Platform, Alert } from 'react-native';
+import { View, StyleSheet, ActivityIndicator, Text, Share, TouchableOpacity, Dimensions, Platform, Alert, TextInput, Modal } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useState, useRef } from 'react';
 import Pdf from 'react-native-pdf';
@@ -11,6 +11,7 @@ export default function PdfViewerScreen() {
         title?: string;
         mode?: string;
         manualData?: string;
+        allManualsForModel?: string;
         buttonText?: string;
         returnTo?: string;
         siteName?: string;
@@ -22,6 +23,8 @@ export default function PdfViewerScreen() {
     const [currentPage, setCurrentPage] = useState(1);
     const [totalPages, setTotalPages] = useState(0);
     const [saving, setSaving] = useState(false);
+    const [showPageJump, setShowPageJump] = useState(false);
+    const [pageInput, setPageInput] = useState('');
     const pdfRef = useRef<any>(null); // NEW: Ref for PDF component
 
     const pdfUrl = typeof params.url === 'string' ? params.url : '';
@@ -42,6 +45,19 @@ export default function PdfViewerScreen() {
         } catch (error) {
             console.error('Share error:', error);
         }
+    };
+
+    const handlePageJump = () => {
+        const pageNum = parseInt(pageInput);
+        if (isNaN(pageNum) || pageNum < 1 || pageNum > totalPages) {
+            Alert.alert('Invalid Page', `Please enter a page number between 1 and ${totalPages}`);
+            return;
+        }
+
+        console.log(`📄 Jumping to page ${pageNum}`);
+        pdfRef.current?.setPage(pageNum);
+        setShowPageJump(false);
+        setPageInput('');
     };
 
     const handleSaveManual = async () => {
@@ -98,8 +114,17 @@ export default function PdfViewerScreen() {
         cache: true,
     };
 
+    const closeModal = () => {
+        router.back();
+    };
+
     return (
         <View style={styles.container}>
+            <TouchableOpacity style={styles.closeButton} onPress={() => {
+                closeModal();
+            }}>
+                <Ionicons name="close" size={20} color="#A78BFA" />
+            </TouchableOpacity>
             <Stack.Screen
                 options={{
                     title: title,
@@ -183,6 +208,65 @@ export default function PdfViewerScreen() {
                     </Text>
                 </View>
             )}
+
+            {/* Page Jump Button - Floating button */}
+            {!loading && !error && totalPages > 0 && !isPreviewMode && (
+                <TouchableOpacity
+                    style={styles.pageJumpButton}
+                    onPress={() => {
+                        setPageInput(currentPage.toString());
+                        setShowPageJump(true);
+                    }}
+                >
+                    <Ionicons name="search-outline" size={24} color="#FFF" />
+                </TouchableOpacity>
+            )}
+
+            {/* Page Jump Modal */}
+            <Modal
+                visible={showPageJump}
+                transparent={true}
+                animationType="fade"
+                onRequestClose={() => setShowPageJump(false)}
+            >
+                <TouchableOpacity
+                    style={styles.modalOverlay}
+                    activeOpacity={1}
+                    onPress={() => setShowPageJump(false)}
+                >
+                    <View style={styles.pageJumpModal} onStartShouldSetResponder={() => true}>
+                        <Text style={styles.modalTitle}>Jump to Page</Text>
+                        <Text style={styles.modalSubtitle}>Enter page number (1-{totalPages})</Text>
+
+                        <TextInput
+                            style={styles.pageInput}
+                            value={pageInput}
+                            onChangeText={setPageInput}
+                            keyboardType="number-pad"
+                            placeholder={currentPage.toString()}
+                            placeholderTextColor="#64748B"
+                            autoFocus={true}
+                            selectTextOnFocus={true}
+                            onSubmitEditing={handlePageJump}
+                        />
+
+                        <View style={styles.modalButtons}>
+                            <TouchableOpacity
+                                style={[styles.modalButton, styles.cancelButton]}
+                                onPress={() => setShowPageJump(false)}
+                            >
+                                <Text style={styles.cancelButtonText}>Cancel</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={[styles.modalButton, styles.goButton]}
+                                onPress={handlePageJump}
+                            >
+                                <Text style={styles.goButtonText}>Go</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </TouchableOpacity>
+            </Modal>
 
             {/* Save Manual Bottom Bar - Only show in preview mode */}
             {isPreviewMode && (
@@ -316,5 +400,103 @@ const styles = StyleSheet.create({
         color: '#FFF',
         fontSize: 18,
         fontWeight: '600',
+    },
+    pageJumpButton: {
+        position: 'absolute',
+        bottom: 90,
+        right: 20,
+        width: 56,
+        height: 56,
+        borderRadius: 28,
+        backgroundColor: '#A78BFA',
+        justifyContent: 'center',
+        alignItems: 'center',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+        elevation: 8,
+        zIndex: 5,
+    },
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0, 0, 0, 0.7)',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    pageJumpModal: {
+        backgroundColor: '#1E293B',
+        borderRadius: 16,
+        padding: 24,
+        width: '80%',
+        maxWidth: 320,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.4,
+        shadowRadius: 16,
+        elevation: 16,
+    },
+    modalTitle: {
+        fontSize: 20,
+        fontWeight: '700',
+        color: '#F1F5F9',
+        marginBottom: 8,
+        textAlign: 'center',
+    },
+    modalSubtitle: {
+        fontSize: 14,
+        color: '#94A3B8',
+        marginBottom: 20,
+        textAlign: 'center',
+    },
+    pageInput: {
+        backgroundColor: '#0F172A',
+        borderWidth: 2,
+        borderColor: '#A78BFA',
+        borderRadius: 12,
+        padding: 16,
+        fontSize: 24,
+        fontWeight: '600',
+        color: '#F1F5F9',
+        textAlign: 'center',
+        marginBottom: 20,
+    },
+    modalButtons: {
+        flexDirection: 'row',
+        gap: 12,
+    },
+    modalButton: {
+        flex: 1,
+        paddingVertical: 14,
+        borderRadius: 12,
+        alignItems: 'center',
+    },
+    cancelButton: {
+        backgroundColor: '#334155',
+    },
+    cancelButtonText: {
+        color: '#F1F5F9',
+        fontSize: 16,
+        fontWeight: '600',
+    },
+    goButton: {
+        backgroundColor: '#A78BFA',
+    },
+    goButtonText: {
+        color: '#FFF',
+        fontSize: 16,
+        fontWeight: '600',
+    },
+    closeButton: {
+        position: 'absolute',
+        top: 8,
+        right: 8,
+        width: 28,
+        height: 28,
+        borderRadius: 20,
+        backgroundColor: 'rgba(167, 139, 250, 0.1)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        zIndex: 10,
     },
 });

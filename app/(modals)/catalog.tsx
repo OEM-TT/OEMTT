@@ -57,6 +57,8 @@ interface Manual {
   pageCount: number | null;
   storagePath: string;
   sourceUrl: string | null;
+  type: string;
+  sectionsCount: number;
 }
 
 interface Variant {
@@ -220,29 +222,48 @@ export default function CatalogScreen() {
       // API returns {manuals: []} structure
       const allManuals = response.data?.manuals || [];
       console.log('📦 Manuals found:', allManuals.length, allManuals);
-      
+
       // Group manuals by variant (extract from title after " - ")
       const variantMap = new Map<string, Manual[]>();
-      
+
       allManuals.forEach((manual: Manual) => {
         // Extract variant from title: "4850FE-GE - 48GE-7-12-01SI" -> "48GE-7-12-01SI"
         const parts = manual.title.split(' - ');
         const variantName = parts.length > 1 ? parts[1] : parts[0];
-        
+
         if (!variantMap.has(variantName)) {
           variantMap.set(variantName, []);
         }
         variantMap.get(variantName)!.push(manual);
       });
-      
+
       // Convert map to array of variants
       const variantsList: Variant[] = Array.from(variantMap.entries()).map(([name, manuals]) => ({
         name,
         manuals,
       }));
-      
+
       console.log('📦 Variants found:', variantsList.length, variantsList);
+      console.log('📦 Total manuals:', allManuals.length);
+      console.log('📦 Should skip? manuals > 0 AND variants <= 1:', allManuals.length > 0 && variantsList.length <= 1);
       setVariants(variantsList);
+
+      // If there are manuals but 0 variants (shouldn't happen), or only 1 variant, skip to manuals view
+      if (allManuals.length > 0 && variantsList.length <= 1) {
+        console.log('📦 ✅ SKIPPING TO MANUALS - Only 1 or 0 variants detected');
+        if (variantsList.length === 1) {
+          console.log('📦 Using variant manuals:', variantsList[0].manuals.length);
+          setSelectedVariant(variantsList[0]);
+          setManuals(variantsList[0].manuals);
+        } else {
+          // No variants parsed, just show all manuals
+          console.log('📦 Using all manuals directly:', allManuals.length);
+          setManuals(allManuals);
+        }
+        setViewMode('manuals');
+      } else {
+        console.log('📦 ❌ NOT SKIPPING - Staying on variants screen');
+      }
     } catch (error) {
       console.error('❌ Error loading manuals:', error);
     } finally {
@@ -575,7 +596,7 @@ export default function CatalogScreen() {
               // Extract just the PDF name (part after " - ")
               const parts = manual.title.split(' - ');
               const pdfTitle = parts.length > 1 ? parts[1] : manual.title;
-              
+
               return (
                 <TouchableOpacity
                   key={manual.id}
