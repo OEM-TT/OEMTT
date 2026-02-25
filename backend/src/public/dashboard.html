@@ -1144,6 +1144,22 @@
             </div>
         </div>
 
+        <!-- Model Detail Modal -->
+        <div id="model-detail-modal"
+            class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+            <div class="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+                <div class="p-6 border-b border-gray-200 flex justify-between items-center sticky top-0 bg-white">
+                    <h3 class="text-xl font-semibold text-gray-900">Model Details</h3>
+                    <button onclick="closeModal('model-detail-modal')" class="text-gray-400 hover:text-gray-600">
+                        <i class="fas fa-times text-xl"></i>
+                    </button>
+                </div>
+                <div id="model-detail-content" class="p-6 space-y-6">
+                    <!-- Dynamic content -->
+                </div>
+            </div>
+        </div>
+
         <!-- Page: Model Requests -->
         <div id="page-model-requests" class="page-content hidden">
             <div class="bg-white rounded-lg shadow">
@@ -1931,51 +1947,65 @@
                                 </div>
                                 <div id="oem-${oem.id}" class="hidden pl-4">
                                     ${(oem.categories || []).map(category => `
-                                        <div class="border-t border-gray-200">
-                                            <div class="px-4 py-2 cursor-pointer hover:bg-gray-50 flex items-center justify-between"
-                                                onclick="toggleTreeNode('category-${category.id}')">
-                                                <div class="flex items-center space-x-2">
+                                        <div class="border-t border-gray-200 group">
+                                            <div class="px-4 py-2 hover:bg-gray-50 flex items-center justify-between">
+                                                <div class="flex items-center space-x-2 cursor-pointer flex-1"
+                                                    onclick="toggleTreeNode('category-${category.id}')">
                                                     <i class="fas fa-chevron-right text-gray-400 transition-transform text-sm" id="chevron-category-${category.id}"></i>
                                                     <i class="fas fa-folder text-purple-600"></i>
                                                     <span class="text-gray-700">${category.name}</span>
+                                                    <span class="text-xs text-gray-500">${category.subCategories?.length || 0} sub-cats</span>
                                                 </div>
-                                                <span class="text-xs text-gray-500">${category.subCategories?.length || 0} sub-cats</span>
+                                                <button onclick="event.stopPropagation(); deleteCategoryConfirm('${category.id}', '${category.name}')" 
+                                                    class="opacity-0 group-hover:opacity-100 text-red-600 hover:text-red-800 px-2 py-1">
+                                                    <i class="fas fa-trash text-sm"></i>
+                                                </button>
                                             </div>
                                             <div id="category-${category.id}" class="hidden pl-4">
                                                 ${(category.subCategories || []).map(subCat => `
-                                                    <div class="border-t border-gray-200">
-                                                        <div class="px-4 py-2 cursor-pointer hover:bg-gray-50 flex items-center justify-between"
-                                                            onclick="toggleTreeNode('subcategory-${subCat.id}')">
-                                                            <div class="flex items-center space-x-2">
+                                                    <div class="border-t border-gray-200 group">
+                                                        <div class="px-4 py-2 hover:bg-gray-50 flex items-center justify-between">
+                                                            <div class="flex items-center space-x-2 cursor-pointer flex-1"
+                                                                onclick="toggleTreeNode('subcategory-${subCat.id}')">
                                                                 <i class="fas fa-chevron-right text-gray-400 transition-transform text-sm" id="chevron-subcategory-${subCat.id}"></i>
                                                                 <i class="fas fa-folder-open text-indigo-600"></i>
                                                                 <span class="text-gray-700">${subCat.name}</span>
+                                                                <span class="text-xs text-gray-500">${subCat.productLines?.length || 0} lines</span>
                                                             </div>
-                                                            <span class="text-xs text-gray-500">${subCat.productLines?.length || 0} lines</span>
+                                                            <button onclick="event.stopPropagation(); deleteSubCategoryConfirm('${subCat.id}', '${subCat.name}')" 
+                                                                class="opacity-0 group-hover:opacity-100 text-red-600 hover:text-red-800 px-2 py-1">
+                                                                <i class="fas fa-trash text-sm"></i>
+                                                            </button>
                                                         </div>
                                                         <div id="subcategory-${subCat.id}" class="hidden pl-4">
                                                             ${(subCat.productLines || []).map(line => `
-                                                                <div class="border-t border-gray-200">
-                                                                    <div class="px-4 py-2 cursor-pointer hover:bg-gray-50 flex items-center justify-between"
-                                                                        onclick="toggleTreeNode('productline-${line.id}')">
-                                                                        <div class="flex items-center space-x-2">
+                                                                <div class="border-t border-gray-200 group">
+                                                                    <div class="px-4 py-2 hover:bg-gray-50 flex items-center justify-between">
+                                                                        <div class="flex items-center space-x-2 cursor-pointer flex-1"
+                                                                            onclick="toggleTreeNode('productline-${line.id}')">
                                                                             <i class="fas fa-chevron-right text-gray-400 transition-transform text-sm" id="chevron-productline-${line.id}"></i>
                                                                             <i class="fas fa-layer-group text-blue-500"></i>
                                                                             <span class="text-gray-700">${line.name}</span>
+                                                                            <span class="text-xs text-gray-500">${line.models?.length || 0} models</span>
                                                                         </div>
-                                                                        <span class="text-xs text-gray-500">${line.models?.length || 0} models</span>
+                                                                        <button onclick="event.stopPropagation(); deleteProductLineConfirm('${line.id}', '${line.name}')" 
+                                                                            class="opacity-0 group-hover:opacity-100 text-red-600 hover:text-red-800 px-2 py-1">
+                                                                            <i class="fas fa-trash text-sm"></i>
+                                                                        </button>
                                                                     </div>
                                                                     <div id="productline-${line.id}" class="hidden pl-4">
                                                                         ${(line.models || []).map(model => `
-                                                                            <div class="border-t border-gray-200 px-4 py-2 cursor-pointer hover:bg-blue-50 flex items-center justify-between"
-                                                                                onclick="selectModel('${model.id}', '${oem.name}', '${category.name}', '${subCat.name}', '${line.name}', '${model.modelNumber}', ${model.manualCount || 0})">
-                                                                                <div class="flex items-center space-x-2">
+                                                                            <div class="border-t border-gray-200 px-4 py-2 hover:bg-blue-50 flex items-center justify-between group">
+                                                                                <div class="flex items-center space-x-2 cursor-pointer flex-1"
+                                                                                    onclick="showModelDetail('${model.id}')">
                                                                                     <i class="fas fa-box text-green-600"></i>
                                                                                     <span class="text-gray-700 font-mono text-sm">${model.modelNumber}</span>
-                                                                                </div>
-                                                                                <div class="flex items-center space-x-2">
                                                                                     <span class="badge ${model.manualCount > 0 ? 'badge-success' : 'badge-danger'}">${model.manualCount || 0} manuals</span>
                                                                                 </div>
+                                                                                <button onclick="event.stopPropagation(); deleteModelConfirm('${model.id}', '${model.modelNumber}')" 
+                                                                                    class="opacity-0 group-hover:opacity-100 text-red-600 hover:text-red-800 px-2 py-1">
+                                                                                    <i class="fas fa-trash text-sm"></i>
+                                                                                </button>
                                                                             </div>
                                                                         `).join('')}
                                                                     </div>
@@ -2031,6 +2061,218 @@
             // Enable upload button if file is selected
             if (selectedFile) {
                 document.getElementById('upload-btn').disabled = false;
+            }
+        }
+
+        // Show model details in modal
+        async function showModelDetail(modelId) {
+            try {
+                const response = await fetch(`/api/taxonomy/models/${modelId}`);
+                const data = await response.json();
+
+                if (!data.success) {
+                    alert('Failed to load model details');
+                    return;
+                }
+
+                const model = data.model;
+                const oem = model.productLine?.subCategory?.category?.oem?.name || 'Unknown';
+                const category = model.productLine?.subCategory?.category?.name || 'Unknown';
+                const subCategory = model.productLine?.subCategory?.name || 'Unknown';
+                const productLine = model.productLine?.name || 'Unknown';
+
+                const modalContent = document.getElementById('model-detail-content');
+                modalContent.innerHTML = `
+                    <div class="space-y-6">
+                        <!-- Model Info -->
+                        <div class="bg-gray-50 rounded-lg p-6">
+                            <h4 class="text-lg font-semibold text-gray-900 mb-4">Model Information</h4>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <div class="text-sm text-gray-600">Model Number</div>
+                                    <div class="font-mono font-semibold text-gray-900">${model.modelNumber}</div>
+                                </div>
+                                <div>
+                                    <div class="text-sm text-gray-600">OEM</div>
+                                    <div class="text-gray-900">${oem}</div>
+                                </div>
+                                <div>
+                                    <div class="text-sm text-gray-600">Category</div>
+                                    <div class="text-gray-900">${category}</div>
+                                </div>
+                                <div>
+                                    <div class="text-sm text-gray-600">Sub-Category</div>
+                                    <div class="text-gray-900">${subCategory}</div>
+                                </div>
+                                <div>
+                                    <div class="text-sm text-gray-600">Product Line</div>
+                                    <div class="text-gray-900">${productLine}</div>
+                                </div>
+                                <div>
+                                    <div class="text-sm text-gray-600">Status</div>
+                                    <div>
+                                        ${model.discontinued
+                        ? '<span class="badge badge-danger">Discontinued</span>'
+                        : '<span class="badge badge-success">Active</span>'}
+                                    </div>
+                                </div>
+                            </div>
+                            ${model.variants && model.variants.length > 1 ? `
+                            <div class="mt-4">
+                                <div class="text-sm text-gray-600 mb-2">Variants</div>
+                                <div class="flex flex-wrap gap-2">
+                                    ${model.variants.map(v => `<span class="px-2 py-1 bg-white rounded text-sm font-mono">${v}</span>`).join('')}
+                                </div>
+                            </div>
+                            ` : ''}
+                        </div>
+
+                        <!-- Manuals Section -->
+                        <div>
+                            <div class="flex justify-between items-center mb-4">
+                                <h4 class="text-lg font-semibold text-gray-900">
+                                    <i class="fas fa-file-pdf text-red-600 mr-2"></i>Manuals (${model.manuals?.length || 0})
+                                </h4>
+                                <button onclick="selectModelForUpload('${model.id}', '${oem}', '${category}', '${subCategory}', '${productLine}', '${model.modelNumber}', ${model.manuals?.length || 0}); closeModal('model-detail-modal'); showPage('manuals')"
+                                    class="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm">
+                                    <i class="fas fa-plus mr-1"></i>Add Manual
+                                </button>
+                            </div>
+                            ${model.manuals && model.manuals.length > 0 ? `
+                            <div class="space-y-3">
+                                ${model.manuals.map(manual => `
+                                    <div class="bg-white border border-gray-200 rounded-lg p-4">
+                                        <div class="flex justify-between items-start">
+                                            <div class="flex-1">
+                                                <div class="font-medium text-gray-900 mb-1">${manual.title}</div>
+                                                <div class="text-sm text-gray-600 space-x-4">
+                                                    <span><i class="fas fa-tag mr-1"></i>
+                                                        <select onchange="updateManualType('${manual.id}', this.value)"
+                                                            class="text-sm border-0 bg-transparent cursor-pointer hover:underline">
+                                                            <option value="installation" ${manual.manualType === 'installation' ? 'selected' : ''}>Installation</option>
+                                                            <option value="service" ${manual.manualType === 'service' ? 'selected' : ''}>Service</option>
+                                                            <option value="parts" ${manual.manualType === 'parts' ? 'selected' : ''}>Parts</option>
+                                                            <option value="technical" ${manual.manualType === 'technical' ? 'selected' : ''}>Technical</option>
+                                                            <option value="troubleshooting" ${manual.manualType === 'troubleshooting' ? 'selected' : ''}>Troubleshooting</option>
+                                                            <option value="operation" ${manual.manualType === 'operation' ? 'selected' : ''}>Operation</option>
+                                                            <option value="warranty" ${manual.manualType === 'warranty' ? 'selected' : ''}>Warranty</option>
+                                                            <option value="other" ${manual.manualType === 'other' ? 'selected' : ''}>Other</option>
+                                                        </select>
+                                                    </span>
+                                                    <span><i class="fas fa-file-alt mr-1"></i>${manual.pageCount || 0} pages</span>
+                                                    <span><i class="fas fa-calendar mr-1"></i>${new Date(manual.createdAt).toLocaleDateString()}</span>
+                                                </div>
+                                            </div>
+                                            <button onclick="deleteManualConfirm('${manual.id}', '${manual.title}')"
+                                                class="text-red-600 hover:text-red-800 ml-4">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                            ` : `
+                            <div class="text-center py-8 text-gray-500">
+                                <i class="fas fa-inbox text-4xl mb-2"></i>
+                                <p>No manuals uploaded yet</p>
+                            </div>
+                            `}
+                        </div>
+                    </div>
+                `;
+
+                document.getElementById('model-detail-modal').classList.remove('hidden');
+            } catch (error) {
+                console.error('Failed to load model details:', error);
+                alert('Failed to load model details');
+            }
+        }
+
+        function selectModelForUpload(modelId, oem, category, subCategory, productLine, modelNumber, manualCount) {
+            selectModel(modelId, oem, category, subCategory, productLine, modelNumber, manualCount);
+        }
+
+        // Delete functions with confirmation
+        async function deleteCategoryConfirm(id, name) {
+            if (!confirm(`Are you sure you want to delete the category "${name}"?\n\nThis will only work if the category has no sub-categories.`)) {
+                return;
+            }
+            await deleteNode('/api/taxonomy/categories', id, 'Category');
+        }
+
+        async function deleteSubCategoryConfirm(id, name) {
+            if (!confirm(`Are you sure you want to delete the sub-category "${name}"?\n\nThis will only work if the sub-category has no product lines.`)) {
+                return;
+            }
+            await deleteNode('/api/taxonomy/sub-categories', id, 'Sub-category');
+        }
+
+        async function deleteProductLineConfirm(id, name) {
+            if (!confirm(`Are you sure you want to delete the product line "${name}"?\n\nThis will only work if the product line has no models.`)) {
+                return;
+            }
+            await deleteNode('/api/taxonomy/product-lines', id, 'Product line');
+        }
+
+        async function deleteModelConfirm(id, modelNumber) {
+            if (!confirm(`Are you sure you want to delete model "${modelNumber}"?\n\nThis will only work if the model has no manuals. Delete the manuals first.`)) {
+                return;
+            }
+            await deleteNode('/api/taxonomy/models', id, 'Model');
+        }
+
+        async function deleteManualConfirm(id, title) {
+            if (!confirm(`Are you sure you want to delete the manual "${title}"?\n\nThis will permanently delete:\n- The PDF file from storage\n- All manual sections\n- All embeddings\n\nThis action cannot be undone.`)) {
+                return;
+            }
+            await deleteNode('/api/manuals', id, 'Manual');
+        }
+
+        async function deleteNode(endpoint, id, typeName) {
+            try {
+                const response = await fetch(`${endpoint}/${id}`, {
+                    method: 'DELETE'
+                });
+
+                const data = await response.json();
+
+                if (!response.ok || !data.success) {
+                    alert(`Failed to delete ${typeName.toLowerCase()}: ${data.error || 'Unknown error'}`);
+                    return;
+                }
+
+                alert(`${typeName} deleted successfully!`);
+                refreshTaxonomy();
+
+                // Close model detail modal if open
+                if (document.getElementById('model-detail-modal').classList.contains('hidden') === false) {
+                    closeModal('model-detail-modal');
+                }
+            } catch (error) {
+                console.error(`Failed to delete ${typeName.toLowerCase()}:`, error);
+                alert(`Failed to delete ${typeName.toLowerCase()}: ${error.message}`);
+            }
+        }
+
+        async function updateManualType(manualId, newType) {
+            try {
+                const response = await fetch(`/api/manuals/${manualId}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ manualType: newType })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok || !data.success) {
+                    alert('Failed to update manual type');
+                    return;
+                }
+
+                // No need to refresh, the select dropdown will show the new value
+            } catch (error) {
+                console.error('Failed to update manual type:', error);
+                alert('Failed to update manual type');
             }
         }
 

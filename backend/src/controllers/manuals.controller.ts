@@ -470,3 +470,91 @@ export async function getManualStatus(req: Request, res: Response, next: NextFun
     next(error);
   }
 }
+
+/**
+ * Update manual (e.g., change manual type)
+ */
+export async function updateManual(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { id } = req.params;
+    const { manualType, title, revision } = req.body;
+
+    const manual = await prisma.manual.findUnique({
+      where: { id: id as string },
+    });
+
+    if (!manual) {
+      return res.status(404).json({
+        success: false,
+        error: 'Manual not found',
+      });
+    }
+
+    const updatedManual = await prisma.manual.update({
+      where: { id: id as string },
+      data: {
+        ...(manualType && { manualType }),
+        ...(title && { title }),
+        ...(revision && { revision }),
+      },
+    });
+
+    return res.json({
+      success: true,
+      manual: updatedManual,
+    });
+  } catch (error) {
+    console.error('Error updating manual:', error);
+    next(error);
+  }
+}
+
+/**
+ * Delete manual (including from storage and sections)
+ */
+export async function deleteManual(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { id } = req.params;
+
+    const manual = await prisma.manual.findUnique({
+      where: { id: id as string },
+    });
+
+    if (!manual) {
+      return res.status(404).json({
+        success: false,
+        error: 'Manual not found',
+      });
+    }
+
+    // Delete from Supabase storage if it exists
+    if (manual.storagePath) {
+      try {
+        const { error } = await supabase.storage
+          .from('manuals')
+          .remove([manual.storagePath]);
+        
+        if (error) {
+          console.error('Error deleting from storage:', error);
+          // Continue with database deletion even if storage deletion fails
+        }
+      } catch (storageError) {
+        console.error('Storage deletion error:', storageError);
+        // Continue with database deletion
+      }
+    }
+
+    // Delete manual (sections will be cascaded by Prisma)
+    await prisma.manual.delete({
+      where: { id: id as string },
+    });
+
+    return res.json({
+      success: true,
+      message: 'Manual deleted successfully',
+    });
+  } catch (error) {
+    console.error('Error deleting manual:', error);
+    next(error);
+  }
+}

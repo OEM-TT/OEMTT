@@ -299,3 +299,213 @@ export async function createModel(req: Request, res: Response, next: NextFunctio
     next(error);
   }
 }
+
+/**
+ * Get model details with manuals
+ */
+export async function getModelDetails(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { id } = req.params;
+
+    const model = await prisma.model.findUnique({
+      where: { id: id as string },
+      include: {
+        productLine: {
+          include: {
+            subCategory: {
+              include: {
+                category: {
+                  include: {
+                    oem: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+        manuals: {
+          orderBy: { createdAt: 'desc' },
+        },
+      },
+    });
+
+    if (!model) {
+      return res.status(404).json({
+        success: false,
+        error: 'Model not found',
+      });
+    }
+
+    return res.json({
+      success: true,
+      model,
+    });
+  } catch (error) {
+    console.error('Error fetching model details:', error);
+    next(error);
+  }
+}
+
+/**
+ * Delete equipment category
+ */
+export async function deleteCategory(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { id } = req.params;
+
+    // Check if category has sub-categories
+    const category = await prisma.equipmentCategory.findUnique({
+      where: { id: id as string },
+      include: { _count: { select: { subCategories: true } } },
+    });
+
+    if (!category) {
+      return res.status(404).json({
+        success: false,
+        error: 'Category not found',
+      });
+    }
+
+    if (category._count.subCategories > 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Cannot delete category with existing sub-categories. Delete them first.',
+      });
+    }
+
+    await prisma.equipmentCategory.delete({
+      where: { id: id as string },
+    });
+
+    return res.json({
+      success: true,
+      message: 'Category deleted successfully',
+    });
+  } catch (error) {
+    console.error('Error deleting category:', error);
+    next(error);
+  }
+}
+
+/**
+ * Delete equipment sub-category
+ */
+export async function deleteSubCategory(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { id } = req.params;
+
+    // Check if sub-category has product lines
+    const subCategory = await prisma.equipmentSubCategory.findUnique({
+      where: { id: id as string },
+      include: { _count: { select: { productLines: true } } },
+    });
+
+    if (!subCategory) {
+      return res.status(404).json({
+        success: false,
+        error: 'Sub-category not found',
+      });
+    }
+
+    if (subCategory._count.productLines > 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Cannot delete sub-category with existing product lines. Delete them first.',
+      });
+    }
+
+    await prisma.equipmentSubCategory.delete({
+      where: { id: id as string },
+    });
+
+    return res.json({
+      success: true,
+      message: 'Sub-category deleted successfully',
+    });
+  } catch (error) {
+    console.error('Error deleting sub-category:', error);
+    next(error);
+  }
+}
+
+/**
+ * Delete product line
+ */
+export async function deleteProductLine(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { id } = req.params;
+
+    // Check if product line has models
+    const productLine = await prisma.productLine.findUnique({
+      where: { id: id as string },
+      include: { _count: { select: { models: true } } },
+    });
+
+    if (!productLine) {
+      return res.status(404).json({
+        success: false,
+        error: 'Product line not found',
+      });
+    }
+
+    if (productLine._count.models > 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Cannot delete product line with existing models. Delete them first.',
+      });
+    }
+
+    await prisma.productLine.delete({
+      where: { id: id as string },
+    });
+
+    return res.json({
+      success: true,
+      message: 'Product line deleted successfully',
+    });
+  } catch (error) {
+    console.error('Error deleting product line:', error);
+    next(error);
+  }
+}
+
+/**
+ * Delete model
+ */
+export async function deleteModel(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { id } = req.params;
+
+    // Check if model has manuals
+    const model = await prisma.model.findUnique({
+      where: { id: id as string },
+      include: { _count: { select: { manuals: true } } },
+    });
+
+    if (!model) {
+      return res.status(404).json({
+        success: false,
+        error: 'Model not found',
+      });
+    }
+
+    if (model._count.manuals > 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Cannot delete model with existing manuals. Delete them first.',
+      });
+    }
+
+    await prisma.model.delete({
+      where: { id: id as string },
+    });
+
+    return res.json({
+      success: true,
+      message: 'Model deleted successfully',
+    });
+  } catch (error) {
+    console.error('Error deleting model:', error);
+    next(error);
+  }
+}
