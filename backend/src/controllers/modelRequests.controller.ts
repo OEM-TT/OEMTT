@@ -66,7 +66,7 @@ export async function updateModelRequest(req: Request, res: Response, next: Next
     if (notes !== undefined) updateData.notes = notes;
 
     const updated = await prisma.modelRequest.update({
-      where: { id },
+      where: { id: id as string },
       data: updateData,
     });
 
@@ -88,7 +88,7 @@ export async function deleteModelRequest(req: Request, res: Response, next: Next
     const { id } = req.params;
 
     await prisma.modelRequest.delete({
-      where: { id },
+      where: { id: id as string },
     });
 
     res.json({
