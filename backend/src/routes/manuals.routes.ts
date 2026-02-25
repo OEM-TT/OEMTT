@@ -6,6 +6,8 @@ import {
   searchManualSections,
   uploadManual,
   getManualStatus,
+  updateManual,
+  deleteManual,
 } from '../controllers/manuals.controller';
 import { authenticate } from '../middleware/auth';
 
@@ -29,6 +31,8 @@ const upload = multer({
 // Public routes (for dashboard)
 router.post('/upload', upload.single('pdf'), uploadManual);
 router.get('/:id/status', getManualStatus);
+router.patch('/:id', updateManual);
+router.delete('/:id', deleteManual);
 
 // Protected routes (require authentication)
 router.get('/search-sections', authenticate, searchManualSections);
