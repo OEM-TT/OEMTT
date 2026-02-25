@@ -18,6 +18,8 @@ const envSchema = z.object({
     STRIPE_WEBHOOK_SECRET: z.string().optional(),
     RATE_LIMIT_WINDOW: z.string().default('15m'),
     RATE_LIMIT_MAX_REQUESTS: z.string().default('100'),
+    // Feature flags
+    ENABLE_PERPLEXITY_DISCOVERY: z.string().default('false').transform(val => val === 'true'),
 });
 
 // Validate and export environment variables

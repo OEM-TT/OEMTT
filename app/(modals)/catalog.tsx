@@ -7,13 +7,32 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { api } from '@/services/api';
 import { getManualPublicUrl } from '@/services/supabase';
 
-type ViewMode = 'industries' | 'brands' | 'productLines' | 'models' | 'variants' | 'manuals';
+type ViewMode = 'industries' | 'brands' | 'categories' | 'subCategories' | 'productLines' | 'models' | 'variants' | 'manuals';
 
 interface OEM {
   id: string;
   name: string;
   vertical: string;
   logoUrl: string | null;
+}
+
+interface Category {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  icon: string | null;
+  subCategoriesCount: number;
+  modelsCount: number;
+}
+
+interface SubCategory {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  productLinesCount: number;
+  modelsCount: number;
 }
 
 interface ProductLine {
@@ -38,6 +57,8 @@ interface Manual {
   pageCount: number | null;
   storagePath: string;
   sourceUrl: string | null;
+  type: string;
+  sectionsCount: number;
 }
 
 interface Variant {
@@ -56,6 +77,8 @@ export default function CatalogScreen() {
   // Navigation state
   const [selectedIndustry, setSelectedIndustry] = useState<string | null>(null);
   const [selectedOEM, setSelectedOEM] = useState<OEM | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
+  const [selectedSubCategory, setSelectedSubCategory] = useState<SubCategory | null>(null);
   const [selectedProductLine, setSelectedProductLine] = useState<ProductLine | null>(null);
   const [selectedModel, setSelectedModel] = useState<Model | null>(null);
   const [selectedVariant, setSelectedVariant] = useState<Variant | null>(null);
@@ -63,6 +86,8 @@ export default function CatalogScreen() {
   // Data state
   const [industries, setIndustries] = useState<string[]>([]);
   const [oems, setOEMs] = useState<OEM[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [subCategories, setSubCategories] = useState<SubCategory[]>([]);
   const [productLines, setProductLines] = useState<ProductLine[]>([]);
   const [models, setModels] = useState<Model[]>([]);
   const [variants, setVariants] = useState<Variant[]>([]);
@@ -113,15 +138,53 @@ export default function CatalogScreen() {
 
   const handleOEMPress = async (oem: OEM) => {
     setSelectedOEM(oem);
+    setViewMode('categories');
+    setLoading(true);
+
+    try {
+      const response: any = await api.get(`/oems/${oem.id}/categories`);
+      const data = Array.isArray(response.data) ? response.data : (response.data?.data || []);
+      setCategories(data);
+    } catch (error) {
+      console.error('Error loading categories:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCategoryPress = async (category: Category) => {
+    setSelectedCategory(category);
+    setViewMode('subCategories');
+    setLoading(true);
+
+    try {
+      console.log('📦 Loading sub-categories for category:', category.id, category.name);
+      const response: any = await api.get(`/oems/categories/${category.id}/sub-categories`);
+      console.log('📦 Sub-categories response:', response.data);
+      const data = response.data?.subCategories || response.data?.data || [];
+      console.log('📦 Sub-categories found:', data.length, data);
+      setSubCategories(data);
+    } catch (error) {
+      console.error('❌ Error loading sub-categories:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSubCategoryPress = async (subCategory: SubCategory) => {
+    setSelectedSubCategory(subCategory);
     setViewMode('productLines');
     setLoading(true);
 
     try {
-      const response: any = await api.get(`/oems/${oem.id}/product-lines`);
-      const data = Array.isArray(response.data) ? response.data : (response.data?.data || []);
+      console.log('📦 Loading product lines for sub-category:', subCategory.id, subCategory.name);
+      const response: any = await api.get(`/oems/sub-categories/${subCategory.id}/product-lines`);
+      console.log('📦 Product lines response:', response.data);
+      const data = response.data?.productLines || response.data?.data || [];
+      console.log('📦 Product lines found:', data.length, data);
       setProductLines(data);
     } catch (error) {
-      console.error('Error loading product lines:', error);
+      console.error('❌ Error loading product lines:', error);
     } finally {
       setLoading(false);
     }
@@ -159,29 +222,48 @@ export default function CatalogScreen() {
       // API returns {manuals: []} structure
       const allManuals = response.data?.manuals || [];
       console.log('📦 Manuals found:', allManuals.length, allManuals);
-      
+
       // Group manuals by variant (extract from title after " - ")
       const variantMap = new Map<string, Manual[]>();
-      
+
       allManuals.forEach((manual: Manual) => {
         // Extract variant from title: "4850FE-GE - 48GE-7-12-01SI" -> "48GE-7-12-01SI"
         const parts = manual.title.split(' - ');
         const variantName = parts.length > 1 ? parts[1] : parts[0];
-        
+
         if (!variantMap.has(variantName)) {
           variantMap.set(variantName, []);
         }
         variantMap.get(variantName)!.push(manual);
       });
-      
+
       // Convert map to array of variants
       const variantsList: Variant[] = Array.from(variantMap.entries()).map(([name, manuals]) => ({
         name,
         manuals,
       }));
-      
+
       console.log('📦 Variants found:', variantsList.length, variantsList);
+      console.log('📦 Total manuals:', allManuals.length);
+      console.log('📦 Should skip? manuals > 0 AND variants <= 1:', allManuals.length > 0 && variantsList.length <= 1);
       setVariants(variantsList);
+
+      // If there are manuals but 0 variants (shouldn't happen), or only 1 variant, skip to manuals view
+      if (allManuals.length > 0 && variantsList.length <= 1) {
+        console.log('📦 ✅ SKIPPING TO MANUALS - Only 1 or 0 variants detected');
+        if (variantsList.length === 1) {
+          console.log('📦 Using variant manuals:', variantsList[0].manuals.length);
+          setSelectedVariant(variantsList[0]);
+          setManuals(variantsList[0].manuals);
+        } else {
+          // No variants parsed, just show all manuals
+          console.log('📦 Using all manuals directly:', allManuals.length);
+          setManuals(allManuals);
+        }
+        setViewMode('manuals');
+      } else {
+        console.log('📦 ❌ NOT SKIPPING - Staying on variants screen');
+      }
     } catch (error) {
       console.error('❌ Error loading manuals:', error);
     } finally {
@@ -236,9 +318,15 @@ export default function CatalogScreen() {
     if (viewMode === 'brands') {
       setViewMode('industries');
       setSelectedIndustry(null);
-    } else if (viewMode === 'productLines') {
+    } else if (viewMode === 'categories') {
       setViewMode('brands');
       setSelectedOEM(null);
+    } else if (viewMode === 'subCategories') {
+      setViewMode('categories');
+      setSelectedCategory(null);
+    } else if (viewMode === 'productLines') {
+      setViewMode('subCategories');
+      setSelectedSubCategory(null);
     } else if (viewMode === 'models') {
       setViewMode('productLines');
       setSelectedProductLine(null);
@@ -255,6 +343,8 @@ export default function CatalogScreen() {
     const parts: string[] = [];
     if (selectedIndustry) parts.push(selectedIndustry);
     if (selectedOEM) parts.push(selectedOEM.name);
+    if (selectedCategory) parts.push(selectedCategory.name);
+    if (selectedSubCategory) parts.push(selectedSubCategory.name);
     if (selectedProductLine) parts.push(selectedProductLine.name);
     if (selectedModel) parts.push(selectedModel.modelNumber);
     if (selectedVariant) parts.push(selectedVariant.name);
@@ -318,6 +408,78 @@ export default function CatalogScreen() {
               {/* <Ionicons name="chevron-forward" size={20} color={theme.colors.textTertiary} /> */}
             </TouchableOpacity>
           ))}
+        </View>
+      );
+    }
+
+    if (viewMode === 'categories') {
+      return (
+        <View style={styles.listContainer}>
+          {categories.length === 0 ? (
+            <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
+              No equipment categories available
+            </Text>
+          ) : (
+            categories.map((category) => (
+              <TouchableOpacity
+                key={category.id}
+                style={[styles.listCard, { backgroundColor: isDark ? theme.colors.backgroundSecondary : theme.colors.white }]}
+                onPress={() => handleCategoryPress(category)}
+              >
+                <View style={[styles.iconCircle, { backgroundColor: theme.colors.primary + '15' }]}>
+                  <Ionicons name="cube" size={24} color={theme.colors.primary} />
+                </View>
+                <View style={styles.listCardContent}>
+                  <Text style={[styles.listCardTitle, { color: theme.colors.text }]}>{category.name}</Text>
+                  {category.description && (
+                    <Text style={[styles.listCardDescription, { color: theme.colors.textSecondary }]} numberOfLines={1}>
+                      {category.description}
+                    </Text>
+                  )}
+                  <Text style={[styles.manualCount, { color: theme.colors.textTertiary }]}>
+                    {category.subCategoriesCount} sub-{category.subCategoriesCount === 1 ? 'category' : 'categories'} • {category.modelsCount} {category.modelsCount === 1 ? 'model' : 'models'}
+                  </Text>
+                </View>
+                {/* <Ionicons name="chevron-forward" size={20} color={theme.colors.textTertiary} /> */}
+              </TouchableOpacity>
+            ))
+          )}
+        </View>
+      );
+    }
+
+    if (viewMode === 'subCategories') {
+      return (
+        <View style={styles.listContainer}>
+          {subCategories.length === 0 ? (
+            <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
+              No sub-categories available
+            </Text>
+          ) : (
+            subCategories.map((subCategory) => (
+              <TouchableOpacity
+                key={subCategory.id}
+                style={[styles.listCard, { backgroundColor: isDark ? theme.colors.backgroundSecondary : theme.colors.white }]}
+                onPress={() => handleSubCategoryPress(subCategory)}
+              >
+                <View style={[styles.iconCircle, { backgroundColor: theme.colors.accent + '15' }]}>
+                  <Ionicons name="layers" size={24} color={theme.colors.accent} />
+                </View>
+                <View style={styles.listCardContent}>
+                  <Text style={[styles.listCardTitle, { color: theme.colors.text }]}>{subCategory.name}</Text>
+                  {subCategory.description && (
+                    <Text style={[styles.listCardDescription, { color: theme.colors.textSecondary }]} numberOfLines={1}>
+                      {subCategory.description}
+                    </Text>
+                  )}
+                  <Text style={[styles.manualCount, { color: theme.colors.textTertiary }]}>
+                    {subCategory.productLinesCount} product {subCategory.productLinesCount === 1 ? 'line' : 'lines'} • {subCategory.modelsCount} {subCategory.modelsCount === 1 ? 'model' : 'models'}
+                  </Text>
+                </View>
+                {/* <Ionicons name="chevron-forward" size={20} color={theme.colors.textTertiary} /> */}
+              </TouchableOpacity>
+            ))
+          )}
         </View>
       );
     }
@@ -434,7 +596,7 @@ export default function CatalogScreen() {
               // Extract just the PDF name (part after " - ")
               const parts = manual.title.split(' - ');
               const pdfTitle = parts.length > 1 ? parts[1] : manual.title;
-              
+
               return (
                 <TouchableOpacity
                   key={manual.id}

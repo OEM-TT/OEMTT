@@ -38,6 +38,7 @@ interface Manual {
   pageCount?: number;
   sourceUrl?: string;
   status: string;
+  storagePath?: string;
 }
 
 interface ModelWithManuals {
@@ -94,11 +95,11 @@ export default function SiteDetailsScreen() {
           try {
             // Load all manuals for the model
             const allManuals = await modelsService.getManualsByModel(unit.modelId);
-            
+
             // Filter by selectedManualIds if they exist (user selected specific manuals)
             // @ts-ignore - selectedManualIds is a JSON field from database
             const selectedIds = unit.selectedManualIds as string[] | null;
-            
+
             if (selectedIds && Array.isArray(selectedIds) && selectedIds.length > 0) {
               console.log(`📋 Filtering ${allManuals.length} manuals by ${selectedIds.length} selected IDs for ${unit.model.modelNumber}`);
               manuals = allManuals.filter(m => selectedIds.includes(m.id));
@@ -192,8 +193,11 @@ export default function SiteDetailsScreen() {
   };
 
   const handleViewManual = (manual: Manual) => {
-    if (manual.sourceUrl) {
-      const publicUrl = getManualPublicUrl(manual.sourceUrl);
+    // Check both storagePath (uploaded PDFs) and sourceUrl (external PDFs)
+    const pdfPath = manual.storagePath || manual.sourceUrl;
+
+    if (pdfPath) {
+      const publicUrl = getManualPublicUrl(pdfPath);
       router.push({
         pathname: '/(modals)/pdf-viewer',
         params: {

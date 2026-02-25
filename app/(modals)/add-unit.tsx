@@ -36,6 +36,7 @@ export default function AddUnitModal() {
     initialSearch?: string;
     prefilledOem?: string;
     prefilledModel?: string;
+    allManualsForModel?: string;
   }>();
   const styles = createStyles(theme);
 
@@ -75,17 +76,12 @@ export default function AddUnitModal() {
     async function loadOems() {
       try {
         const data = await oemsService.getAll('HVAC');
+        // Show all OEMs from database
+        setOems(data);
 
-        // ⚠️ TEMPORARY FILTER: Only showing Carrier for now
-        // TO REMOVE THIS FILTER: 
-        // 1. Replace the next line with: setOems(data);
-        // 2. Remove the auto-select line below
-        const filteredOems = data.filter(oem => oem.name === 'Carrier');
-        setOems(filteredOems);
-
-        // Auto-select Carrier since it's the only option
-        if (filteredOems.length > 0) {
-          setSelectedOem(filteredOems[0].id);
+        // Auto-select first OEM if available
+        if (data.length > 0) {
+          setSelectedOem(data[0].id);
         }
 
       } catch (error) {
@@ -145,7 +141,7 @@ export default function AddUnitModal() {
         } else {
           // Creating new site - show details form
           console.log('📝 Showing details form for new site');
-          
+
           // Set selected manual and model
           setSelectedManual(manual);
           setSelectedModel({
@@ -158,7 +154,7 @@ export default function AddUnitModal() {
               },
             },
           });
-          
+
           // Restore ALL manuals from the original search (passed via URL)
           if (params.allManualsForModel) {
             try {
@@ -183,7 +179,7 @@ export default function AddUnitModal() {
               manuals: [manual],
             });
           }
-          
+
           setManualSaveMode('single');
           setSelectedManualIds([manual.id]);
           setStep('details');
@@ -230,16 +226,16 @@ export default function AddUnitModal() {
             const oemObj = oems.find(o => o.id === selectedOem);
             oemName = oemObj?.name;
           }
-          
+
           console.log('📦 Search params:', { model: selectedModel.modelNumber, oem: oemName });
-          
+
           const result = await discoveryService.search(
             selectedModel.modelNumber,  // model string
             oemName || ''                // oem string
           );
-          
+
           console.log('📦 Discovery result structure:', result);
-          
+
           // Handle two possible response formats:
           // 1. Grouped format: {models: [{model: {...}, manuals: [...]}]}
           // 2. Flat format: {manuals: [...]}
@@ -397,23 +393,23 @@ export default function AddUnitModal() {
         },
       },
     });
-    
+
     // Get all manuals for this model from the ORIGINAL search results
     if (searchResults?.manuals) {
       // Filter all manuals that belong to the same model
       const manualsForThisModel = searchResults.manuals.filter((m: any) => m.model.id === manual.model.id);
       console.log(`📋 Found ${manualsForThisModel.length} manuals for model ${manual.model.modelNumber} from search results`);
-      
+
       setSelectedModelForManuals({
         model: manual.model,
         manuals: manualsForThisModel,
       });
     }
-    
+
     // Initialize manual selection to just this manual
     setManualSaveMode('single');
     setSelectedManualIds([manual.id]);
-    
+
     setStep('details');
   };
 
@@ -757,285 +753,285 @@ export default function AddUnitModal() {
   const renderDetailsStep = () => {
     const allManuals = selectedModelForManuals?.manuals || [];
     const modelNumber = selectedModel?.modelNumber || '';
-    
+
     console.log('🎨 Rendering details step');
     console.log('📦 selectedModelForManuals:', selectedModelForManuals);
     console.log('📦 allManuals count:', allManuals.length);
     console.log('📦 selectedManual:', selectedManual);
-    
+
     return (
-    <>
+      <>
 
 
-      {/* <Text style={[styles.title, { color: theme.colors.text }]}>Unit Details</Text>
+        {/* <Text style={[styles.title, { color: theme.colors.text }]}>Unit Details</Text>
       <Text style={[styles.description, { color: theme.colors.textSecondary }]}>
         {selectedModel?.productLine?.oem?.name} {selectedModel?.modelNumber}
       </Text> */}
 
-      <ScrollView style={styles.formScroll} showsVerticalScrollIndicator={false}>
-        {/* Manual Saving Options */}
-        {allManuals.length > 1 && (
-          <View style={[styles.manualOptionsCard, { backgroundColor: isDark ? theme.colors.backgroundSecondary : theme.colors.white }]}>
-            <Text style={[styles.manualOptionsTitle, { color: theme.colors.text }]}>
-              Which manuals would you like to save?
-            </Text>
-            
-            {/* Save just this manual */}
-            <TouchableOpacity
-              style={[
-                styles.manualOptionButton,
-                { borderColor: theme.colors.border },
-                manualSaveMode === 'single' && { backgroundColor: theme.colors.primary + '10', borderColor: theme.colors.primary }
-              ]}
-              onPress={() => {
-                setManualSaveMode('single');
-                setSelectedManualIds([selectedManual?.id]);
-              }}
-            >
-              <Ionicons 
-                name={manualSaveMode === 'single' ? "radio-button-on" : "radio-button-off"} 
-                size={20} 
-                color={manualSaveMode === 'single' ? theme.colors.primary : theme.colors.textTertiary} 
-              />
-              <View style={styles.manualOptionContent}>
-                <Text style={[styles.manualOptionText, { color: theme.colors.text }]}>
-                  Just this manual
-                </Text>
-                <Text style={[styles.manualOptionSubtext, { color: theme.colors.textSecondary }]}>
-                  {selectedManual?.title}
-                </Text>
-              </View>
-            </TouchableOpacity>
-
-            {/* Save all manuals */}
-            <TouchableOpacity
-              style={[
-                styles.manualOptionButton,
-                { borderColor: theme.colors.border },
-                manualSaveMode === 'all' && { backgroundColor: theme.colors.primary + '10', borderColor: theme.colors.primary }
-              ]}
-              onPress={() => {
-                setManualSaveMode('all');
-                setSelectedManualIds(allManuals.map((m: any) => m.id));
-              }}
-            >
-              <Ionicons 
-                name={manualSaveMode === 'all' ? "radio-button-on" : "radio-button-off"} 
-                size={20} 
-                color={manualSaveMode === 'all' ? theme.colors.primary : theme.colors.textTertiary} 
-              />
-              <View style={styles.manualOptionContent}>
-                <Text style={[styles.manualOptionText, { color: theme.colors.text }]}>
-                  All manuals for {modelNumber}
-                </Text>
-                <Text style={[styles.manualOptionSubtext, { color: theme.colors.textSecondary }]}>
-                  {allManuals.length} manuals
-                </Text>
-              </View>
-            </TouchableOpacity>
-
-            {/* Select specific manuals */}
-            <TouchableOpacity
-              style={[
-                styles.manualOptionButton,
-                { borderColor: theme.colors.border },
-                manualSaveMode === 'custom' && { backgroundColor: theme.colors.primary + '10', borderColor: theme.colors.primary }
-              ]}
-              onPress={() => {
-                setManualSaveMode('custom');
-                // Keep current selection
-              }}
-            >
-              <Ionicons 
-                name={manualSaveMode === 'custom' ? "radio-button-on" : "radio-button-off"} 
-                size={20} 
-                color={manualSaveMode === 'custom' ? theme.colors.primary : theme.colors.textTertiary} 
-              />
-              <View style={styles.manualOptionContent}>
-                <Text style={[styles.manualOptionText, { color: theme.colors.text }]}>
-                  Select specific manuals
-                </Text>
-                <Text style={[styles.manualOptionSubtext, { color: theme.colors.textSecondary }]}>
-                  Choose which ones to save
-                </Text>
-              </View>
-            </TouchableOpacity>
-
-            {/* Show manual checkboxes if custom mode */}
-            {manualSaveMode === 'custom' && (
-              <View style={styles.manualChecklistContainer}>
-                {allManuals.map((manual: any) => {
-                  const isSelected = selectedManualIds.includes(manual.id);
-                  return (
-                    <TouchableOpacity
-                      key={manual.id}
-                      style={[styles.manualCheckItem, { borderColor: theme.colors.border }]}
-                      onPress={() => {
-                        if (isSelected) {
-                          setSelectedManualIds(selectedManualIds.filter(id => id !== manual.id));
-                        } else {
-                          setSelectedManualIds([...selectedManualIds, manual.id]);
-                        }
-                      }}
-                    >
-                      <Ionicons 
-                        name={isSelected ? "checkbox" : "square-outline"} 
-                        size={20} 
-                        color={isSelected ? theme.colors.primary : theme.colors.textTertiary} 
-                      />
-                      <Text style={[styles.manualCheckText, { color: theme.colors.text }]} numberOfLines={1}>
-                        {manual.title}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            )}
-          </View>
-        )}
-
-        {/* Check if adding to existing site */}
-        {nickname && existingSites.includes(nickname) ? (
-          <>
-            {/* Existing Site Card */}
-            <View style={[styles.existingSiteCard, { backgroundColor: isDark ? theme.colors.backgroundSecondary : theme.colors.white }]}>
-              <View style={[styles.existingSiteIconContainer, { backgroundColor: theme.colors.primary + '20' }]}>
-                <Ionicons name="business" size={32} color={theme.colors.primary} />
-              </View>
-              <Text style={[styles.existingSiteCardTitle, { color: theme.colors.text }]}>Adding to Existing Site</Text>
-              <Text style={[styles.existingSiteCardSite, { color: theme.colors.primary }]}>{nickname}</Text>
-              <Text style={[styles.existingSiteCardDescription, { color: theme.colors.textSecondary }]}>
-                This unit will be added to your existing site
+        <ScrollView style={styles.formScroll} showsVerticalScrollIndicator={false}>
+          {/* Manual Saving Options */}
+          {allManuals.length > 1 && (
+            <View style={[styles.manualOptionsCard, { backgroundColor: isDark ? theme.colors.backgroundSecondary : theme.colors.white }]}>
+              <Text style={[styles.manualOptionsTitle, { color: theme.colors.text }]}>
+                Which manuals would you like to save?
               </Text>
 
+              {/* Save just this manual */}
               <TouchableOpacity
-                style={[styles.changeSiteButton, { borderColor: theme.colors.border }]}
-                onPress={() => setNickname('')}
+                style={[
+                  styles.manualOptionButton,
+                  { borderColor: theme.colors.border },
+                  manualSaveMode === 'single' && { backgroundColor: theme.colors.primary + '10', borderColor: theme.colors.primary }
+                ]}
+                onPress={() => {
+                  setManualSaveMode('single');
+                  setSelectedManualIds([selectedManual?.id]);
+                }}
               >
-                <Ionicons name="swap-horizontal" size={18} color={theme.colors.textSecondary} />
-                <Text style={[styles.changeSiteButtonText, { color: theme.colors.textSecondary }]}>
-                  Change Site or Create New
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            <TouchableOpacity
-              style={[styles.primaryButton, { backgroundColor: theme.colors.primary, marginTop: theme.spacing.xl }]}
-              onPress={handleSave}
-              disabled={loading}
-            >
-              {loading ? (
-                <ActivityIndicator color={theme.colors.white} />
-              ) : (
-                <>
-                  <Text style={styles.primaryButtonText}>Add to {nickname}</Text>
-                  <Ionicons name="checkmark" size={20} color={theme.colors.white} />
-                </>
-              )}
-            </TouchableOpacity>
-          </>
-        ) : (
-          <>
-            {/* Add to Existing Site Option */}
-            {!loadingExistingSites && existingSites.length > 0 && (
-              <View style={styles.formGroup}>
-                <Text style={[styles.label, { color: theme.colors.text }]}>Quick Add to Existing Site</Text>
-                <TouchableOpacity
-                  style={[styles.existingSiteButton, { backgroundColor: isDark ? theme.colors.backgroundSecondary : theme.colors.white, borderColor: theme.colors.border }]}
-                  onPress={() => {
-                    const siteButtons = [
-                      ...existingSites.map(site => ({
-                        text: site,
-                        onPress: () => setNickname(site),
-                      })),
-                      { text: 'Cancel', style: 'cancel' as const },
-                    ];
-                    Alert.alert(
-                      'Select Existing Site',
-                      'Choose a site to add this unit to',
-                      siteButtons
-                    );
-                  }}
-                >
-                  <Ionicons name="folder-open-outline" size={20} color={theme.colors.textSecondary} />
-                  <Text style={[styles.existingSiteButtonText, { color: theme.colors.textSecondary }]}>
-                    Select from {existingSites.length} existing {existingSites.length === 1 ? 'site' : 'sites'}
+                <Ionicons
+                  name={manualSaveMode === 'single' ? "radio-button-on" : "radio-button-off"}
+                  size={20}
+                  color={manualSaveMode === 'single' ? theme.colors.primary : theme.colors.textTertiary}
+                />
+                <View style={styles.manualOptionContent}>
+                  <Text style={[styles.manualOptionText, { color: theme.colors.text }]}>
+                    Just this manual
                   </Text>
-                  <Ionicons name="chevron-down" size={20} color={theme.colors.textSecondary} />
+                  <Text style={[styles.manualOptionSubtext, { color: theme.colors.textSecondary }]}>
+                    {selectedManual?.title}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+
+              {/* Save all manuals */}
+              <TouchableOpacity
+                style={[
+                  styles.manualOptionButton,
+                  { borderColor: theme.colors.border },
+                  manualSaveMode === 'all' && { backgroundColor: theme.colors.primary + '10', borderColor: theme.colors.primary }
+                ]}
+                onPress={() => {
+                  setManualSaveMode('all');
+                  setSelectedManualIds(allManuals.map((m: any) => m.id));
+                }}
+              >
+                <Ionicons
+                  name={manualSaveMode === 'all' ? "radio-button-on" : "radio-button-off"}
+                  size={20}
+                  color={manualSaveMode === 'all' ? theme.colors.primary : theme.colors.textTertiary}
+                />
+                <View style={styles.manualOptionContent}>
+                  <Text style={[styles.manualOptionText, { color: theme.colors.text }]}>
+                    All manuals for {modelNumber}
+                  </Text>
+                  <Text style={[styles.manualOptionSubtext, { color: theme.colors.textSecondary }]}>
+                    {allManuals.length} manuals
+                  </Text>
+                </View>
+              </TouchableOpacity>
+
+              {/* Select specific manuals */}
+              <TouchableOpacity
+                style={[
+                  styles.manualOptionButton,
+                  { borderColor: theme.colors.border },
+                  manualSaveMode === 'custom' && { backgroundColor: theme.colors.primary + '10', borderColor: theme.colors.primary }
+                ]}
+                onPress={() => {
+                  setManualSaveMode('custom');
+                  // Keep current selection
+                }}
+              >
+                <Ionicons
+                  name={manualSaveMode === 'custom' ? "radio-button-on" : "radio-button-off"}
+                  size={20}
+                  color={manualSaveMode === 'custom' ? theme.colors.primary : theme.colors.textTertiary}
+                />
+                <View style={styles.manualOptionContent}>
+                  <Text style={[styles.manualOptionText, { color: theme.colors.text }]}>
+                    Select specific manuals
+                  </Text>
+                  <Text style={[styles.manualOptionSubtext, { color: theme.colors.textSecondary }]}>
+                    Choose which ones to save
+                  </Text>
+                </View>
+              </TouchableOpacity>
+
+              {/* Show manual checkboxes if custom mode */}
+              {manualSaveMode === 'custom' && (
+                <View style={styles.manualChecklistContainer}>
+                  {allManuals.map((manual: any) => {
+                    const isSelected = selectedManualIds.includes(manual.id);
+                    return (
+                      <TouchableOpacity
+                        key={manual.id}
+                        style={[styles.manualCheckItem, { borderColor: theme.colors.border }]}
+                        onPress={() => {
+                          if (isSelected) {
+                            setSelectedManualIds(selectedManualIds.filter(id => id !== manual.id));
+                          } else {
+                            setSelectedManualIds([...selectedManualIds, manual.id]);
+                          }
+                        }}
+                      >
+                        <Ionicons
+                          name={isSelected ? "checkbox" : "square-outline"}
+                          size={20}
+                          color={isSelected ? theme.colors.primary : theme.colors.textTertiary}
+                        />
+                        <Text style={[styles.manualCheckText, { color: theme.colors.text }]} numberOfLines={1}>
+                          {manual.title}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              )}
+            </View>
+          )}
+
+          {/* Check if adding to existing site */}
+          {nickname && existingSites.includes(nickname) ? (
+            <>
+              {/* Existing Site Card */}
+              <View style={[styles.existingSiteCard, { backgroundColor: isDark ? theme.colors.backgroundSecondary : theme.colors.white }]}>
+                <View style={[styles.existingSiteIconContainer, { backgroundColor: theme.colors.primary + '20' }]}>
+                  <Ionicons name="business" size={32} color={theme.colors.primary} />
+                </View>
+                <Text style={[styles.existingSiteCardTitle, { color: theme.colors.text }]}>Adding to Existing Site</Text>
+                <Text style={[styles.existingSiteCardSite, { color: theme.colors.primary }]}>{nickname}</Text>
+                <Text style={[styles.existingSiteCardDescription, { color: theme.colors.textSecondary }]}>
+                  This unit will be added to your existing site
+                </Text>
+
+                <TouchableOpacity
+                  style={[styles.changeSiteButton, { borderColor: theme.colors.border }]}
+                  onPress={() => setNickname('')}
+                >
+                  <Ionicons name="swap-horizontal" size={18} color={theme.colors.textSecondary} />
+                  <Text style={[styles.changeSiteButtonText, { color: theme.colors.textSecondary }]}>
+                    Change Site or Create New
+                  </Text>
                 </TouchableOpacity>
               </View>
-            )}
 
-            {/* New Site Form */}
-            <View style={styles.formGroup}>
-              <Text style={[styles.label, { color: theme.colors.text }]}>
-                Nickname <Text style={{ color: theme.colors.danger }}>*</Text>
-              </Text>
-              <TextInput
-                style={[styles.input, { color: theme.colors.text, backgroundColor: isDark ? theme.colors.backgroundSecondary : theme.colors.white, borderColor: theme.colors.border }]}
-                placeholder="e.g. Johnson Residence"
-                placeholderTextColor={theme.colors.textTertiary}
-                value={nickname}
-                onChangeText={setNickname}
-                autoFocus
-              />
-            </View>
-
-            <View style={styles.formGroup}>
-              <Text style={[styles.label, { color: theme.colors.text }]}>Serial Number</Text>
-              <TextInput
-                style={[styles.input, { color: theme.colors.text, backgroundColor: isDark ? theme.colors.backgroundSecondary : theme.colors.white, borderColor: theme.colors.border }]}
-                placeholder=""
-                placeholderTextColor={theme.colors.textTertiary}
-                value={serialNumber}
-                onChangeText={setSerialNumber}
-                autoCapitalize="characters"
-              />
-            </View>
-
-            <View style={styles.formGroup}>
-              <Text style={[styles.label, { color: theme.colors.text }]}>Location</Text>
-              <TextInput
-                style={[styles.input, { color: theme.colors.text, backgroundColor: isDark ? theme.colors.backgroundSecondary : theme.colors.white, borderColor: theme.colors.border }]}
-                placeholder="e.g. Main House, Basement"
-                placeholderTextColor={theme.colors.textTertiary}
-                value={location}
-                onChangeText={setLocation}
-              />
-            </View>
-
-            <View style={styles.formGroup}>
-              <Text style={[styles.label, { color: theme.colors.text }]}>Notes</Text>
-              <TextInput
-                style={[styles.textArea, { color: theme.colors.text, backgroundColor: isDark ? theme.colors.backgroundSecondary : theme.colors.white, borderColor: theme.colors.border }]}
-                placeholder="Add any notes about this unit..."
-                placeholderTextColor={theme.colors.textTertiary}
-                value={notes}
-                onChangeText={setNotes}
-                multiline
-                numberOfLines={4}
-                textAlignVertical="top"
-              />
-            </View>
-
-            <TouchableOpacity
-              style={[styles.primaryButton, { backgroundColor: theme.colors.primary }]}
-              onPress={handleSave}
-              disabled={loading || !nickname.trim()}
-            >
-              {loading ? (
-                <ActivityIndicator color={theme.colors.white} />
-              ) : (
-                <>
-                  <Text style={styles.primaryButtonText}>Save Unit</Text>
-                  <Ionicons name="checkmark" size={20} color={theme.colors.white} />
-                </>
+              <TouchableOpacity
+                style={[styles.primaryButton, { backgroundColor: theme.colors.primary, marginTop: theme.spacing.xl }]}
+                onPress={handleSave}
+                disabled={loading}
+              >
+                {loading ? (
+                  <ActivityIndicator color={theme.colors.white} />
+                ) : (
+                  <>
+                    <Text style={styles.primaryButtonText}>Add to {nickname}</Text>
+                    <Ionicons name="checkmark" size={20} color={theme.colors.white} />
+                  </>
+                )}
+              </TouchableOpacity>
+            </>
+          ) : (
+            <>
+              {/* Add to Existing Site Option */}
+              {!loadingExistingSites && existingSites.length > 0 && (
+                <View style={styles.formGroup}>
+                  <Text style={[styles.label, { color: theme.colors.text }]}>Quick Add to Existing Site</Text>
+                  <TouchableOpacity
+                    style={[styles.existingSiteButton, { backgroundColor: isDark ? theme.colors.backgroundSecondary : theme.colors.white, borderColor: theme.colors.border }]}
+                    onPress={() => {
+                      const siteButtons = [
+                        ...existingSites.map(site => ({
+                          text: site,
+                          onPress: () => setNickname(site),
+                        })),
+                        { text: 'Cancel', style: 'cancel' as const },
+                      ];
+                      Alert.alert(
+                        'Select Existing Site',
+                        'Choose a site to add this unit to',
+                        siteButtons
+                      );
+                    }}
+                  >
+                    <Ionicons name="folder-open-outline" size={20} color={theme.colors.textSecondary} />
+                    <Text style={[styles.existingSiteButtonText, { color: theme.colors.textSecondary }]}>
+                      Select from {existingSites.length} existing {existingSites.length === 1 ? 'site' : 'sites'}
+                    </Text>
+                    <Ionicons name="chevron-down" size={20} color={theme.colors.textSecondary} />
+                  </TouchableOpacity>
+                </View>
               )}
-            </TouchableOpacity>
-          </>
-        )}
-      </ScrollView>
-    </>
+
+              {/* New Site Form */}
+              <View style={styles.formGroup}>
+                <Text style={[styles.label, { color: theme.colors.text }]}>
+                  Nickname <Text style={{ color: theme.colors.danger }}>*</Text>
+                </Text>
+                <TextInput
+                  style={[styles.input, { color: theme.colors.text, backgroundColor: isDark ? theme.colors.backgroundSecondary : theme.colors.white, borderColor: theme.colors.border }]}
+                  placeholder="e.g. Johnson Residence"
+                  placeholderTextColor={theme.colors.textTertiary}
+                  value={nickname}
+                  onChangeText={setNickname}
+                  autoFocus
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text style={[styles.label, { color: theme.colors.text }]}>Serial Number</Text>
+                <TextInput
+                  style={[styles.input, { color: theme.colors.text, backgroundColor: isDark ? theme.colors.backgroundSecondary : theme.colors.white, borderColor: theme.colors.border }]}
+                  placeholder=""
+                  placeholderTextColor={theme.colors.textTertiary}
+                  value={serialNumber}
+                  onChangeText={setSerialNumber}
+                  autoCapitalize="characters"
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text style={[styles.label, { color: theme.colors.text }]}>Location</Text>
+                <TextInput
+                  style={[styles.input, { color: theme.colors.text, backgroundColor: isDark ? theme.colors.backgroundSecondary : theme.colors.white, borderColor: theme.colors.border }]}
+                  placeholder="e.g. Main House, Basement"
+                  placeholderTextColor={theme.colors.textTertiary}
+                  value={location}
+                  onChangeText={setLocation}
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text style={[styles.label, { color: theme.colors.text }]}>Notes</Text>
+                <TextInput
+                  style={[styles.textArea, { color: theme.colors.text, backgroundColor: isDark ? theme.colors.backgroundSecondary : theme.colors.white, borderColor: theme.colors.border }]}
+                  placeholder="Add any notes about this unit..."
+                  placeholderTextColor={theme.colors.textTertiary}
+                  value={notes}
+                  onChangeText={setNotes}
+                  multiline
+                  numberOfLines={4}
+                  textAlignVertical="top"
+                />
+              </View>
+
+              <TouchableOpacity
+                style={[styles.primaryButton, { backgroundColor: theme.colors.primary }]}
+                onPress={handleSave}
+                disabled={loading || !nickname.trim()}
+              >
+                {loading ? (
+                  <ActivityIndicator color={theme.colors.white} />
+                ) : (
+                  <>
+                    <Text style={styles.primaryButtonText}>Save Unit</Text>
+                    <Ionicons name="checkmark" size={20} color={theme.colors.white} />
+                  </>
+                )}
+              </TouchableOpacity>
+            </>
+          )}
+        </ScrollView>
+      </>
     );
   };
 

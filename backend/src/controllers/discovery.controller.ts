@@ -9,6 +9,7 @@ import { discoverAndIngestManual } from '@/services/discovery/autoIngest';
 import { AppError } from '@/middleware/errorHandler';
 import { prisma } from '@/config/database';
 import { extractBaseModel, getModelSearchVariants } from '@/utils/modelNumber';
+import { env } from '@/config/env';
 
 /**
  * Discover and ingest a manual on-demand
@@ -123,13 +124,85 @@ export async function searchWithDiscovery(req: AuthRequest, res: Response) {
                         modelNumber: m.model.modelNumber,
                         oem: m.model.productLine.oem.name,
                         productLine: m.model.productLine.name,
+                        category: m.model.productLine.category,
                     },
                 })),
             });
         }
 
-        // Step 2: Manual not found - trigger discovery
-        console.log('⚠️  Manual not found, triggering discovery...');
+        // Step 2: Manual not found - check if discovery is enabled
+        console.log('⚠️  Manual not found in database');
+
+        // Check if Perplexity discovery is enabled
+        if (!env.ENABLE_PERPLEXITY_DISCOVERY) {
+            console.log('📝 Perplexity discovery disabled - creating model request');
+            
+            // Create or increment model request (handle case where user might not exist in DB yet)
+            try {
+                // Check if this model has already been requested
+                const existingRequest = await prisma.modelRequest.findFirst({
+                    where: {
+                        oemName: { equals: oem as string || 'Unknown', mode: 'insensitive' },
+                        modelNumber: { equals: modelNumber as string, mode: 'insensitive' },
+                    },
+                });
+
+                if (existingRequest) {
+                    // Increment existing request count
+                    await prisma.modelRequest.update({
+                        where: { id: existingRequest.id },
+                        data: {
+                            requestCount: { increment: 1 },
+                            lastRequestedAt: new Date(),
+                        },
+                    });
+                    console.log(`   ✅ Incremented request count for ${oem} ${modelNumber} (now ${existingRequest.requestCount + 1}x)`);
+                } else {
+                    // Check if user exists in our database
+                    const userExists = await prisma.user.findUnique({
+                        where: { id: userId },
+                        select: { id: true },
+                    });
+
+                    // Create new request (with or without user_id depending on if user exists)
+                    await prisma.modelRequest.create({
+                        data: {
+                            oemName: oem as string || 'Unknown',
+                            modelNumber: modelNumber as string,
+                            userId: userExists ? userId : null,
+                            requestCount: 1,
+                        },
+                    });
+                    console.log(`   ✅ Created new model request for ${oem} ${modelNumber}`);
+                }
+            } catch (error) {
+                console.error('⚠️  Failed to record model request:', error);
+                // Don't fail the whole request if we can't record the model request
+            }
+
+            // Track as failed search (for analytics)
+            await trackSearch({
+                userId,
+                oemName: oem as string || 'Unknown',
+                modelNumber: modelNumber as string,
+                searchType: 'failed',
+                foundInDatabase: false,
+                usedPerplexity: false,
+                manualsFound: 0,
+                processingTimeMs: Date.now() - searchStartTime,
+                errorMessage: 'Model not found - request recorded',
+            });
+
+            return res.status(404).json({
+                success: false,
+                source: 'database',
+                message: "We don't have this manual yet, but we're working on it! We'll notify you when it becomes available.",
+                error: 'Manual not currently in database. Your request has been recorded and our team has been notified.',
+            });
+        }
+
+        // Step 3: Perplexity discovery is enabled - trigger it
+        console.log('🔍 Perplexity discovery enabled - triggering automatic discovery...');
 
         // If no OEM provided, we can't do discovery (Perplexity needs OEM context)
         if (!oem) {

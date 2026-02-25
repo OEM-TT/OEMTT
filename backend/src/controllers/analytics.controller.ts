@@ -83,7 +83,7 @@ export async function getOverview(req: Request, res: Response) {
     const INPUT_COST_PER_TOKEN = 0.150 / 1_000_000;
     const OUTPUT_COST_PER_TOKEN = 0.600 / 1_000_000;
 
-    // Get questions with token data (Chat costs)
+    // Get questions with token data and context
     const questions = await prisma.question.findMany({
       where: startDate ? { createdAt: { gte: startDate } } : {},
       select: {
@@ -91,26 +91,37 @@ export async function getOverview(req: Request, res: Response) {
         outputTokens: true,
         estimatedCost: true,
         createdAt: true,
+        context: true,
       },
     });
 
     const todayQuestions = questions.filter(q => q.createdAt >= today);
 
-    // Calculate chat costs from actual data
-    let chatCost = questions.reduce((sum, q) => sum + (q.estimatedCost || 0), 0);
-    let todayChatCost = todayQuestions.reduce((sum, q) => sum + (q.estimatedCost || 0), 0);
-
-    // Estimate Perplexity costs (Perplexity sonar: ~$1 per 1M tokens, avg 2000 tokens per search)
-    const PERPLEXITY_COST_PER_SEARCH = 0.002; // $0.002 per search (conservative estimate)
-    const searches = await prisma.search.findMany({
-      where: {
-        ...(startDate ? { createdAt: { gte: startDate } } : {}),
-        usedPerplexity: true,
-      },
+    // Separate OpenAI and Perplexity costs
+    const openAIQuestions = questions.filter(q => {
+      const ctx = q.context as any;
+      return !ctx || !ctx.provider || ctx.provider !== 'perplexity';
     });
-    const todaySearches = searches.filter(s => s.createdAt >= today);
-    const perplexityCost = searches.length * PERPLEXITY_COST_PER_SEARCH;
-    const todayPerplexityCost = todaySearches.length * PERPLEXITY_COST_PER_SEARCH;
+    const perplexityQuestions = questions.filter(q => {
+      const ctx = q.context as any;
+      return ctx && ctx.provider === 'perplexity';
+    });
+
+    const todayOpenAI = todayQuestions.filter(q => {
+      const ctx = q.context as any;
+      return !ctx || !ctx.provider || ctx.provider !== 'perplexity';
+    });
+    const todayPerplexity = todayQuestions.filter(q => {
+      const ctx = q.context as any;
+      return ctx && ctx.provider === 'perplexity';
+    });
+
+    // Calculate actual costs from stored data
+    let chatCost = openAIQuestions.reduce((sum, q) => sum + (q.estimatedCost || 0), 0);
+    let todayChatCost = todayOpenAI.reduce((sum, q) => sum + (q.estimatedCost || 0), 0);
+    
+    let perplexityCost = perplexityQuestions.reduce((sum, q) => sum + (q.estimatedCost || 0), 0);
+    let todayPerplexityCost = todayPerplexity.reduce((sum, q) => sum + (q.estimatedCost || 0), 0);
 
     // Total costs (Chat + Perplexity)
     let totalCost = chatCost + perplexityCost;
@@ -174,7 +185,7 @@ export async function getCostAnalytics(req: Request, res: Response) {
 
     const whereClause = startDate ? { createdAt: { gte: startDate } } : {};
 
-    // Get all questions with costs (Chat costs)
+    // Get all questions with costs (Chat costs) including context to identify provider
     const questions = await prisma.question.findMany({
       where: whereClause,
       select: {
@@ -186,11 +197,22 @@ export async function getCostAnalytics(req: Request, res: Response) {
         processingTimeMs: true,
         createdAt: true,
         chat_session_id: true,
+        context: true,
       },
     });
 
-    // Get Perplexity searches (Discovery costs)
-    const PERPLEXITY_COST_PER_SEARCH = 0.002; // $0.002 per search
+    // Separate OpenAI and Perplexity questions
+    const openAIQuestions = questions.filter(q => {
+      const ctx = q.context as any;
+      return !ctx || !ctx.provider || ctx.provider !== 'perplexity';
+    });
+    const perplexityQuestions = questions.filter(q => {
+      const ctx = q.context as any;
+      return ctx && ctx.provider === 'perplexity';
+    });
+
+    // Get Perplexity searches (Discovery costs - manual discovery only)
+    const PERPLEXITY_COST_PER_SEARCH = 0.002; // $0.002 per search (legacy, only for manual discovery)
     const searches = await prisma.search.findMany({
       where: {
         ...whereClause,
@@ -206,6 +228,7 @@ export async function getCostAnalytics(req: Request, res: Response) {
           select: {
             estimatedCost: true,
             createdAt: true,
+            context: true,
           },
         },
         searches: {
@@ -217,16 +240,20 @@ export async function getCostAnalytics(req: Request, res: Response) {
       },
     });
 
-    // Calculate chat metrics
+    // Calculate OpenAI chat metrics
     const totalQuestions = questions.length;
-    const chatCost = questions.reduce((sum, q) => sum + (q.estimatedCost || 0), 0);
+    const openAICost = openAIQuestions.reduce((sum, q) => sum + (q.estimatedCost || 0), 0);
     const questionsWithCost = questions.filter(q => q.estimatedCost && q.estimatedCost > 0);
     
-    // Calculate discovery metrics
+    // Calculate Perplexity costs (chat fallback + manual discovery)
+    const perplexityChatCost = perplexityQuestions.reduce((sum, q) => sum + (q.estimatedCost || 0), 0);
+    const perplexityDiscoveryCost = searches.length * PERPLEXITY_COST_PER_SEARCH;
+    const totalPerplexityCost = perplexityChatCost + perplexityDiscoveryCost;
     const totalSearches = searches.length;
-    const discoveryCost = searches.length * PERPLEXITY_COST_PER_SEARCH;
 
     // Total costs
+    const chatCost = openAICost; // OpenAI only
+    const discoveryCost = totalPerplexityCost; // All Perplexity costs
     const totalCost = chatCost + discoveryCost;
 
     // Average cost per question (only counting questions with cost data)
@@ -247,12 +274,25 @@ export async function getCostAnalytics(req: Request, res: Response) {
       ? Array.from(sessionCosts.values()).reduce((sum, cost) => sum + cost, 0) / sessionCosts.size
       : 0;
 
-    // User cost breakdown (including both chat and discovery costs)
+    // User cost breakdown (including OpenAI chat + Perplexity chat + Perplexity discovery costs)
     const userCosts = users.map(user => {
       const userQuestions = user.questions;
-      const userChatCost = userQuestions.reduce((sum, q) => sum + (q.estimatedCost || 0), 0);
-      const userDiscoveryCost = user.searches.length * PERPLEXITY_COST_PER_SEARCH;
-      const userTotalCost = userChatCost + userDiscoveryCost;
+      
+      // Separate OpenAI and Perplexity questions
+      const userOpenAIQuestions = userQuestions.filter(q => {
+        const ctx = q.context as any;
+        return !ctx || !ctx.provider || ctx.provider !== 'perplexity';
+      });
+      const userPerplexityQuestions = userQuestions.filter(q => {
+        const ctx = q.context as any;
+        return ctx && ctx.provider === 'perplexity';
+      });
+
+      const userOpenAICost = userOpenAIQuestions.reduce((sum, q) => sum + (q.estimatedCost || 0), 0);
+      const userPerplexityChatCost = userPerplexityQuestions.reduce((sum, q) => sum + (q.estimatedCost || 0), 0);
+      const userPerplexityDiscoveryCost = user.searches.length * PERPLEXITY_COST_PER_SEARCH;
+      const userPerplexityTotalCost = userPerplexityChatCost + userPerplexityDiscoveryCost;
+      const userTotalCost = userOpenAICost + userPerplexityTotalCost;
       
       // Calculate monthly cost (assuming 30 days)
       const oldestQuestion = userQuestions.length > 0 
@@ -267,8 +307,10 @@ export async function getCostAnalytics(req: Request, res: Response) {
         email: user.email,
         name: user.name,
         totalCost: userTotalCost,
-        chatCost: userChatCost,
-        discoveryCost: userDiscoveryCost,
+        chatCost: userOpenAICost,
+        discoveryCost: userPerplexityTotalCost,
+        perplexityChatCost: userPerplexityChatCost,
+        perplexityDiscoveryCost: userPerplexityDiscoveryCost,
         questionCount: userQuestions.length,
         searchCount: user.searches.length,
         avgCostPerQuestion: userQuestions.length > 0 ? userTotalCost / userQuestions.length : 0,
@@ -344,6 +386,9 @@ export async function getCostAnalytics(req: Request, res: Response) {
       discovery: {
         totalSearches,
         perplexityCost: discoveryCost,
+        perplexityChatCost: perplexityChatCost,
+        perplexityDiscoveryCost: perplexityDiscoveryCost,
+        perplexityChatQuestions: perplexityQuestions.length,
         avgCostPerSearch: PERPLEXITY_COST_PER_SEARCH,
         percentOfTotal: totalCost > 0 ? (discoveryCost / totalCost) * 100 : 0,
       },

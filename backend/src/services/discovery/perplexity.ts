@@ -611,3 +611,131 @@ export async function verifyPDF(url: string): Promise<PDFVerification> {
     return { valid: false, error: error.message };
   }
 }
+
+/**
+ * Answer a question using Perplexity web search
+ * Used as fallback when manual content doesn't have the answer
+ * 
+ * @param question - User's question
+ * @param context - Additional context (unit info, model, etc.)
+ * @returns AI-generated answer with sources
+ */
+export async function answerWithWebSearch(
+  question: string,
+  context: {
+    oem: string;
+    modelNumber: string;
+    unitInfo?: string;
+  }
+): Promise<{
+  answer: string;
+  sources: string[];
+  usage: {
+    inputTokens: number;
+    outputTokens: number;
+    totalTokens: number;
+    cost: number;
+  };
+}> {
+  if (!PERPLEXITY_API_KEY) {
+    throw new Error('PERPLEXITY_API_KEY not configured');
+  }
+
+  console.log(`🌐 Perplexity Web Search: "${question.substring(0, 60)}..."`);
+
+  // Build context-aware prompt
+  const contextInfo = `Equipment Context: ${context.oem} ${context.modelNumber}${context.unitInfo ? `\n${context.unitInfo}` : ''}`;
+
+  const prompt = `${contextInfo}
+
+Question: ${question}
+
+Please provide a detailed, technically accurate answer for this HVAC/commercial equipment question. Focus on:
+1. Practical troubleshooting and maintenance advice
+2. Safety considerations
+3. Industry best practices
+4. Manufacturer-specific information when available
+
+Be concise but comprehensive. Include specific technical details and procedures where relevant.`;
+
+  try {
+    const response = await axios.post(
+      PERPLEXITY_API_URL,
+      {
+        model: 'sonar', // Fast, real-time web search model
+        messages: [
+          {
+            role: 'system',
+            content: `You are an expert HVAC technician and service engineer with deep knowledge of commercial equipment. Provide accurate, practical answers based on current information from the web.
+
+🚨 **CRITICAL SAFETY REQUIREMENTS:**
+
+You MUST identify and warn about dangerous actions. If the question involves any of these hazards, include a prominent safety warning:
+
+**ELECTRICAL HAZARDS:** Working on live circuits, touching electrical components, bypassing safety interlocks
+→ Warn: Turn off power, verify with multimeter, use PPE, follow NFPA 70E
+
+**REFRIGERANT HAZARDS:** Venting refrigerant, working without EPA certification, mixing refrigerant types
+→ Warn: Requires EPA 608 certification, illegal to vent (Clean Air Act, $37,500/day fines), use recovery equipment
+
+**GAS HAZARDS:** Working on gas lines, testing leaks with flame, ignition system work
+→ Warn: Turn off gas, ventilate, never use flames, contact licensed gas technician
+
+**PRESSURE HAZARDS:** Opening pressurized lines, working on compressors under pressure
+→ Warn: Recover refrigerant, verify 0 PSI, wear safety gear, never heat refrigerant lines
+
+**MECHANICAL HAZARDS:** Working on rotating equipment while running, removing guards
+→ Warn: Lock out/tag out, verify stopped, reinstall guards, use fall protection
+
+Always prioritize safety over speed. Include safety warnings prominently at the start of your response if applicable. Recommend licensed professionals when appropriate.`,
+          },
+          {
+            role: 'user',
+            content: prompt,
+          },
+        ],
+        temperature: 0.3,
+        max_tokens: 1500,
+        return_citations: true,
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${PERPLEXITY_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        timeout: 30000, // 30 seconds
+      }
+    );
+
+    const answer = response.data.choices[0]?.message?.content || 'No answer available';
+    const citations = response.data.citations || [];
+
+    // Extract token usage from response
+    const usage = response.data.usage || { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 };
+    const inputTokens = usage.prompt_tokens || 0;
+    const outputTokens = usage.completion_tokens || 0;
+    const totalTokens = usage.total_tokens || inputTokens + outputTokens;
+
+    // Calculate cost (Perplexity Sonar pricing: ~$1/1M input, ~$1/1M output)
+    const INPUT_COST_PER_TOKEN = 1.0 / 1_000_000;  // $1 per 1M input tokens
+    const OUTPUT_COST_PER_TOKEN = 1.0 / 1_000_000; // $1 per 1M output tokens
+    const cost = (inputTokens * INPUT_COST_PER_TOKEN) + (outputTokens * OUTPUT_COST_PER_TOKEN);
+
+    console.log(`✅ Perplexity answered (${answer.length} chars, ${citations.length} sources)`);
+    console.log(`   💰 Tokens: ${inputTokens} in + ${outputTokens} out = ${totalTokens} total ($${cost.toFixed(6)})`);
+
+    return {
+      answer,
+      sources: citations,
+      usage: {
+        inputTokens,
+        outputTokens,
+        totalTokens,
+        cost,
+      },
+    };
+  } catch (error: any) {
+    console.error('❌ Perplexity API error:', error.response?.data || error.message);
+    throw new Error('Failed to get answer from web search');
+  }
+}

@@ -1,7 +1,7 @@
 import { api } from '../api';
 import { Model, Manual } from '@/types';
 
-interface DiscoverySearchResult {
+export interface DiscoverySearchResult {
   success: boolean;
   source: 'database' | 'discovery';
   message?: string;
@@ -23,6 +23,12 @@ interface DiscoverySearchResult {
     pageCount: number;
     sectionsCreated: number;
   };
+  models?: Array<{
+    model: any;
+    manuals: any[];
+    totalSections?: number;
+    totalPages?: number;
+  }>;
 }
 
 interface PopularSearch {

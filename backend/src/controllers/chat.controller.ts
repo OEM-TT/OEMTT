@@ -41,14 +41,14 @@ export async function askQuestion(req: AuthRequest, res: Response) {
     // New format: conversation history
     // Take last 10 messages
     conversationHistory = messages.slice(-10);
-    
+
     // Current question is the last user message
     const lastMessage = conversationHistory[conversationHistory.length - 1];
     if (lastMessage.role !== 'user') {
       throw new AppError(400, 'Last message must be from user');
     }
     currentQuestion = lastMessage.content;
-    
+
     // Remove the current question from history (it will be sent separately to GPT)
     conversationHistory = conversationHistory.slice(0, -1);
   } else if (question) {
@@ -150,6 +150,106 @@ export async function askQuestion(req: AuthRequest, res: Response) {
       sendEvent('warning', {
         message: 'No relevant sections found in the manual for this question. Searching for general information...',
       });
+    }
+
+    // 🌐 PHASE 3 FALLBACK: Check if we need Perplexity web search
+    // This happens when confidence is very low and question appears model-specific
+    if (context.sourceType === 'needs_web_search') {
+      console.log('🌐 Using Perplexity fallback (low confidence, model-specific question)');
+
+      try {
+        const { answerWithWebSearch } = await import('@/services/discovery/perplexity');
+
+        sendEvent('warning', {
+          message: '🌐 Searching the web for the latest information...',
+        });
+
+        const webResult = await answerWithWebSearch(currentQuestion, {
+          oem: context.model.oem,
+          modelNumber: context.model.modelNumber,
+          unitInfo: `Unit: ${context.unit.nickname}${context.unit.location ? ` (${context.unit.location})` : ''}`,
+        });
+
+        // Stream the web search answer
+        let fullAnswer = webResult.answer;
+
+        // Send answer in chunks for better UX
+        const chunkSize = 50;
+        for (let i = 0; i < fullAnswer.length; i += chunkSize) {
+          const chunk = fullAnswer.substring(i, i + chunkSize);
+          sendEvent('token', { content: chunk });
+          await new Promise(resolve => setTimeout(resolve, 20)); // Small delay for smooth streaming
+        }
+
+        // Add sources at the end
+        if (webResult.sources.length > 0) {
+          const sourcesText = `\n\n**Sources (from web):**\n${webResult.sources.slice(0, 3).map((s, i) => `${i + 1}. ${s}`).join('\n')}`;
+          fullAnswer += sourcesText;
+          sendEvent('token', { content: sourcesText });
+        }
+
+        // Create/get session for saving the message
+        const dbUser = await prisma.user.findUnique({
+          where: { supabaseUserId: userId },
+          select: { id: true },
+        });
+
+        if (!dbUser) {
+          console.warn('⚠️  User not found - skipping save');
+        } else {
+          let sessionId = chatSessionId;
+          if (!sessionId) {
+            const session = await prisma.chat_sessions.create({
+              data: {
+                user_id: dbUser.id,
+                unit_id: unitId,
+                title: currentQuestion.substring(0, 50),
+                last_message_at: new Date(),
+              },
+            });
+            sessionId = session.id;
+          }
+
+          // Save the question and answer with Perplexity usage data
+          await prisma.question.create({
+            data: {
+              userId: dbUser.id,
+              modelId: context.model.id,
+              manualId: context.manuals[0]?.id || null,
+              chat_session_id: sessionId,
+              questionText: currentQuestion,
+              answerText: fullAnswer,
+              answerSources: webResult.sources.slice(0, 3).map(s => ({ url: s })),
+              inputTokens: webResult.usage.inputTokens,
+              outputTokens: webResult.usage.outputTokens,
+              totalTokens: webResult.usage.totalTokens,
+              estimatedCost: webResult.usage.cost,
+              context: {
+                source: 'web_search',
+                confidence: context.confidence,
+                provider: 'perplexity',
+              },
+            },
+          });
+
+          sendEvent('complete', {
+            sessionId: sessionId,
+            totalTokens: webResult.usage.totalTokens,
+            cost: webResult.usage.cost,
+            source: 'web_search',
+            sources: webResult.sources.slice(0, 3),
+          });
+        }
+
+        res.end();
+        return; // Exit early, don't use OpenAI
+      } catch (perplexityError: any) {
+        console.error('❌ Perplexity fallback failed:', perplexityError.message);
+        // Continue with OpenAI as fallback to fallback
+        sendEvent('warning', {
+          message: 'Web search unavailable. Using general knowledge instead.',
+        });
+      }
     }
 
     // 5. Stream AI response
@@ -284,6 +384,7 @@ export async function askQuestion(req: AuthRequest, res: Response) {
         section: s.sectionTitle,
         page: s.pageReference,
         type: s.sectionType,
+        manualId: s.manualId,  // ADD THIS - needed for frontend to open PDF
       })),
     });
 
@@ -414,7 +515,7 @@ export async function getQuestionHistory(req: AuthRequest, res: Response) {
         }
       }
     });
-    
+
     return {
       id: session.id,
       title: session.title,

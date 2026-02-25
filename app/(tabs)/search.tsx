@@ -31,16 +31,16 @@ export default function SearchScreen() {
   const [selectedOem, setSelectedOem] = useState<string>('');
   const [modelNumber, setModelNumber] = useState('');
   const [loadingOems, setLoadingOems] = useState(true);
-  
+
   // Search state
   const [loading, setLoading] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState<string>('');
-  
+
   // Results
   const [searchResults, setSearchResults] = useState<any>(null);
   const [selectedModel, setSelectedModel] = useState<any>(null);
   const [modelManuals, setModelManuals] = useState<any[]>([]);
-  
+
   // Popular searches
   const [popularSearches, setPopularSearches] = useState<PopularSearch[]>([]);
   const [loadingPopular, setLoadingPopular] = useState(true);
@@ -54,13 +54,12 @@ export default function SearchScreen() {
   const loadOems = async () => {
     try {
       const data = await oemsService.getAll('HVAC');
-      // Filter to Carrier only (same as add-unit screen)
-      const filteredOems = data.filter(oem => oem.name === 'Carrier');
-      setOems(filteredOems);
-      
-      // Auto-select Carrier
-      if (filteredOems.length > 0) {
-        setSelectedOem(filteredOems[0].id);
+      // Show all OEMs from database
+      setOems(data);
+
+      // Auto-select first OEM (typically Carrier)
+      if (data.length > 0) {
+        setSelectedOem(data[0].id);
       }
     } catch (error) {
       console.error('Failed to load OEMs:', error);
@@ -190,7 +189,7 @@ export default function SearchScreen() {
   const handleModelPress = (model: any) => {
     setSelectedModel(model);
     // Group manuals by this model
-    const manuals = searchResults.manuals.filter((m: any) => 
+    const manuals = searchResults.manuals.filter((m: any) =>
       m.model.modelNumber === model.modelNumber
     );
     setModelManuals(manuals);
@@ -200,7 +199,7 @@ export default function SearchScreen() {
   const handleManualPress = (manual: any) => {
     // Get the public URL for the PDF
     const pdfUrl = getManualPublicUrl(manual.storagePath);
-    
+
     console.log('📄 Opening PDF:', {
       storagePath: manual.storagePath,
       publicUrl: pdfUrl,
@@ -255,7 +254,7 @@ export default function SearchScreen() {
                 key={oem.id}
                 style={[
                   styles.oemCard,
-                  { 
+                  {
                     backgroundColor: isDark ? theme.colors.backgroundSecondary : theme.colors.white,
                     borderColor: selectedOem === oem.id ? theme.colors.primary : theme.colors.border,
                     borderWidth: selectedOem === oem.id ? 2 : 1,
@@ -298,10 +297,10 @@ export default function SearchScreen() {
       <TouchableOpacity
         style={[
           styles.searchButton,
-          { 
-            backgroundColor: loading || !selectedOem || !modelNumber.trim() 
-              ? theme.colors.disabled 
-              : theme.colors.primary 
+          {
+            backgroundColor: loading || !selectedOem || !modelNumber.trim()
+              ? theme.colors.disabled
+              : theme.colors.primary
           }
         ]}
         onPress={handleSearch}
@@ -323,8 +322,8 @@ export default function SearchScreen() {
       {/* Quick Actions */}
       <View style={styles.quickActions}>
         <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Quick Actions</Text>
-        
-        <TouchableOpacity 
+
+        <TouchableOpacity
           style={[styles.actionCard, { backgroundColor: isDark ? theme.colors.backgroundSecondary : theme.colors.white }]}
           onPress={() => Alert.alert('Coming Soon', 'Serial plate scanning will be available in a future update.')}
         >
@@ -340,7 +339,7 @@ export default function SearchScreen() {
           <Ionicons name="chevron-forward" size={20} color={theme.colors.textTertiary} />
         </TouchableOpacity>
 
-        <TouchableOpacity 
+        <TouchableOpacity
           style={[styles.actionCard, { backgroundColor: isDark ? theme.colors.backgroundSecondary : theme.colors.white }]}
           onPress={() => router.push('/(modals)/catalog')}
         >
@@ -434,7 +433,9 @@ export default function SearchScreen() {
               <View style={styles.modelCardContent}>
                 <Text style={[styles.modelNumber, { color: theme.colors.text }]}>{model.modelNumber}</Text>
                 <Text style={[styles.modelOem, { color: theme.colors.textSecondary }]}>
-                  {model.model.oem} • {model.model.productLine}
+                  {model.model.oem}
+                  {model.model.category && ` • ${model.model.category}`}
+                  {model.model.productLine && ` • ${model.model.productLine}`}
                 </Text>
                 <Text style={[styles.modelManualCount, { color: theme.colors.textTertiary }]}>
                   {model.manuals.length} {model.manuals.length === 1 ? 'manual' : 'manuals'}
@@ -462,7 +463,9 @@ export default function SearchScreen() {
           <View style={styles.resultsHeaderContent}>
             <Text style={[styles.resultsTitle, { color: theme.colors.text }]}>{selectedModel.modelNumber}</Text>
             <Text style={[styles.resultsSubtitle, { color: theme.colors.textSecondary }]}>
-              {selectedModel.model.oem} • {selectedModel.model.productLine}
+              {selectedModel.model.oem}
+              {selectedModel.model.category && ` • ${selectedModel.model.category}`}
+              {selectedModel.model.productLine && ` • ${selectedModel.model.productLine}`}
             </Text>
           </View>
         </View>
@@ -475,8 +478,8 @@ export default function SearchScreen() {
               style={[styles.manualCard, { backgroundColor: isDark ? theme.colors.backgroundSecondary : theme.colors.white }]}
               onPress={() => handleManualPress(manual)}
             >
-              <View style={[styles.manualIconCircle, { backgroundColor: theme.colors.error + '15' }]}>
-                <Ionicons name="document-text" size={24} color={theme.colors.error} />
+              <View style={[styles.manualIconCircle, { backgroundColor: theme.colors.danger + '15' }]}>
+                <Ionicons name="document-text" size={24} color={theme.colors.danger} />
               </View>
               <View style={styles.manualCardContent}>
                 <Text style={[styles.manualTitle, { color: theme.colors.text }]}>{manual.title}</Text>
@@ -514,6 +517,7 @@ export default function SearchScreen() {
 const createStyles = (theme: any) => StyleSheet.create({
   container: {
     flex: 1,
+    paddingBottom: -60,
   },
   content: {
     padding: theme.spacing.lg,

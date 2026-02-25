@@ -28,6 +28,7 @@ model User {
   questions           Question[]
   savedUnits          SavedUnit[]
   searches            Search[]
+  modelRequests       ModelRequest[]
 
   @@index([email])
   @@index([supabaseUserId])
@@ -35,34 +36,75 @@ model User {
 }
 
 model OEM {
-  id                   String        @id @default(uuid())
-  name                 String        @unique
+  id                   String              @id @default(uuid())
+  name                 String              @unique
   vertical             String
   website              String?
-  logoUrl              String?       @map("logo_url")
-  documentationPortals String[]      @map("documentation_portals")
-  regionsSupported     String[]      @map("regions_supported")
-  status               String        @default("active")
-  createdAt            DateTime      @default(now()) @map("created_at")
-  updatedAt            DateTime      @updatedAt @map("updated_at")
+  logoUrl              String?             @map("logo_url")
+  documentationPortals String[]            @map("documentation_portals")
+  regionsSupported     String[]            @map("regions_supported")
+  status               String              @default("active")
+  createdAt            DateTime            @default(now()) @map("created_at")
+  updatedAt            DateTime            @updatedAt @map("updated_at")
   productLines         ProductLine[]
+  equipmentCategories  EquipmentCategory[]
 
   @@index([vertical])
   @@map("oems")
 }
 
+model EquipmentCategory {
+  id             String                   @id @default(uuid())
+  oemId          String                   @map("oem_id")
+  name           String
+  slug           String
+  description    String?
+  icon           String?
+  displayOrder   Int                      @default(0) @map("display_order")
+  createdAt      DateTime                 @default(now()) @map("created_at")
+  updatedAt      DateTime                 @updatedAt @map("updated_at")
+  oem            OEM                      @relation(fields: [oemId], references: [id], onDelete: Cascade)
+  subCategories  EquipmentSubCategory[]
+
+  @@unique([oemId, slug])
+  @@index([oemId])
+  @@index([slug])
+  @@map("equipment_categories")
+}
+
+model EquipmentSubCategory {
+  id            String             @id @default(uuid())
+  categoryId    String             @map("category_id")
+  name          String
+  slug          String
+  description   String?
+  displayOrder  Int                @default(0) @map("display_order")
+  createdAt     DateTime           @default(now()) @map("created_at")
+  updatedAt     DateTime           @updatedAt @map("updated_at")
+  category      EquipmentCategory  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  productLines  ProductLine[]
+
+  @@unique([categoryId, slug])
+  @@index([categoryId])
+  @@index([slug])
+  @@map("equipment_sub_categories")
+}
+
 model ProductLine {
-  id          String   @id @default(uuid())
-  oemId       String   @map("oem_id")
-  name        String
-  category    String
-  description String?
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-  models      Model[]
-  oem         OEM      @relation(fields: [oemId], references: [id], onDelete: Cascade)
+  id            String                  @id @default(uuid())
+  oemId         String                  @map("oem_id")
+  name          String
+  category      String
+  description   String?
+  subCategoryId String?                 @map("sub_category_id")
+  createdAt     DateTime                @default(now()) @map("created_at")
+  updatedAt     DateTime                @updatedAt @map("updated_at")
+  models        Model[]
+  oem           OEM                     @relation(fields: [oemId], references: [id], onDelete: Cascade)
+  subCategory   EquipmentSubCategory?   @relation(fields: [subCategoryId], references: [id], onDelete: SetNull)
 
   @@index([oemId])
+  @@index([subCategoryId])
   @@map("product_lines")
 }
 
@@ -244,4 +286,25 @@ model Search {
   @@index([searchType])
   @@index([createdAt])
   @@map("searches")
+}
+
+model ModelRequest {
+  id              String    @id @default(uuid())
+  userId          String?   @map("user_id")
+  oemName         String?   @map("oem_name") @db.VarChar(100)
+  modelNumber     String    @map("model_number") @db.VarChar(100)
+  searchQuery     String?   @map("search_query")
+  status          String    @default("pending") @db.VarChar(50)
+  priority        Int       @default(0)
+  notes           String?
+  requestCount    Int       @default(1) @map("request_count")
+  lastRequestedAt DateTime  @default(now()) @map("last_requested_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  user            User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([status])
+  @@index([oemName, modelNumber])
+  @@index([createdAt])
+  @@map("model_requests")
 }
