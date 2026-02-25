@@ -56,7 +56,7 @@ export async function getTaxonomyTree(req: Request, res: Response, next: NextFun
                 productLines: sub.productLines.map((line) => ({
                   id: line.id,
                   name: line.name,
-                  slug: line.slug,
+                  slug: line.slug || slugify(line.name, { lower: true, strict: true }),
                   models: line.models.map((model) => ({
                     id: model.id,
                     modelNumber: model.modelNumber,

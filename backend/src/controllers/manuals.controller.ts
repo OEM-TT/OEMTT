@@ -325,6 +325,10 @@ async function processManualInBackground(manualId: string) {
       throw new Error('Manual not found');
     }
 
+    if (!manual.storagePath) {
+      throw new Error('Manual has no storage path');
+    }
+
     // Update status to processing
     await prisma.manual.update({
       where: { id: manualId },
@@ -384,7 +388,6 @@ async function processManualInBackground(manualId: string) {
 
     console.log(`\n✅ Manual processing complete for ${manualId}!`);
     console.log(`   Total sections: ${embeddedChunks.length}`);
-    console.log(`   Embedding cost: $${embeddedChunks[0]?.totalCost || 0}`);
 
     // Update manual status to active and set page count
     await prisma.manual.update({
@@ -418,10 +421,14 @@ export async function getManualStatus(req: Request, res: Response, next: NextFun
     const { id } = req.params;
 
     const manual = await prisma.manual.findUnique({
-      where: { id },
-      include: {
-        _count: {
-          select: { sections: true },
+      where: { id: id as string },
+      select: {
+        id: true,
+        title: true,
+        pageCount: true,
+        status: true,
+        sections: {
+          select: { id: true },
         },
       },
     });
@@ -433,16 +440,17 @@ export async function getManualStatus(req: Request, res: Response, next: NextFun
       });
     }
 
+    const sectionsCount = manual.sections.length;
     let status = 'complete';
     let progress = 100;
 
     if (manual.pageCount === 0) {
       status = 'processing';
-      progress = manual._count.sections > 0 ? 50 : 10; // Rough estimate
+      progress = sectionsCount > 0 ? 50 : 10; // Rough estimate
     } else if (manual.pageCount === -1) {
       status = 'failed';
       progress = 0;
-    } else if (manual._count.sections === 0) {
+    } else if (sectionsCount === 0) {
       status = 'processing';
       progress = 30;
     }
@@ -455,7 +463,7 @@ export async function getManualStatus(req: Request, res: Response, next: NextFun
         id: manual.id,
         title: manual.title,
         pageCount: manual.pageCount,
-        sectionsCount: manual._count.sections,
+        sectionsCount,
       },
     });
   } catch (error) {
