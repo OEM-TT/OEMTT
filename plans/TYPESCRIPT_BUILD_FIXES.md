@@ -75,9 +75,11 @@ await prisma.modelRequest.delete({
 ### 9. `taxonomy.controller.ts(59,30)` - Missing slug Property
 **Error**: `Property 'slug' does not exist on type...`
 
-**Fix**: Handle optional slug field with fallback:
+**Root Cause**: `ProductLine` model doesn't have a `slug` field in the Prisma schema.
+
+**Fix**: Generate slug from name instead of reading from database:
 ```typescript
-slug: line.slug || slugify(line.name, { lower: true, strict: true }),
+slug: slugify(line.name, { lower: true, strict: true }),
 ```
 
 ## Files Modified
