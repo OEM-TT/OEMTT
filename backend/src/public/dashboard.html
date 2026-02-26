@@ -874,14 +874,18 @@
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-2">2. Manual Type</label>
                                 <select id="manual-type" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
-                                    <option value="installation">Installation Manual</option>
-                                    <option value="service">Service Manual</option>
-                                    <option value="parts">Parts List</option>
-                                    <option value="technical">Technical Guide</option>
-                                    <option value="troubleshooting">Troubleshooting Guide</option>
-                                    <option value="operation">Operation Manual</option>
-                                    <option value="warranty">Warranty Information</option>
-                                    <option value="other">Other</option>
+                                    <option value="hardware">Hardware Manual</option>
+                                    <option value="users">Users Manual</option>
+                                    <option value="iom">IOM</option>
+                                    <option value="installation_startup">Installation and Start-Up</option>
+                                    <option value="installation_startup_service">Installation, Start-Up, and Service
+                                    </option>
+                                    <option value="supplemental">Supplemental Instructions</option>
+                                    <option value="controls_full">Controls, Start-Up, Operation, Service, and
+                                        Troubleshooting</option>
+                                    <option value="installation_instructions">Installation Instructions</option>
+                                    <option value="startup_operation_maintenance">Start-Up, Operation, and Maintenance
+                                    </option>
                                 </select>
                             </div>
 
@@ -2064,6 +2068,41 @@
             }
         }
 
+        // Helper function to generate manual type options
+        function getManualTypeOptions(currentType) {
+            const manualTypes = [
+                { value: 'hardware', label: 'Hardware Manual' },
+                { value: 'users', label: 'Users Manual' },
+                { value: 'iom', label: 'IOM' },
+                { value: 'installation_startup', label: 'Installation and Start-Up' },
+                { value: 'installation_startup_service', label: 'Installation, Start-Up, and Service' },
+                { value: 'supplemental', label: 'Supplemental Instructions' },
+                { value: 'controls_full', label: 'Controls, Start-Up, Operation, Service, and Troubleshooting' },
+                { value: 'installation_instructions', label: 'Installation Instructions' },
+                { value: 'startup_operation_maintenance', label: 'Start-Up, Operation, and Maintenance' }
+            ];
+
+            // Check if current type exists in our new list
+            const isLegacyType = !manualTypes.find(t => t.value === currentType);
+
+            let options = '';
+
+            // If it's a legacy type, show it first with a note
+            if (isLegacyType && currentType) {
+                const legacyLabel = currentType.charAt(0).toUpperCase() + currentType.slice(1).replace(/_/g, ' ');
+                options += `<option value="${currentType}" selected style="background-color: #FEF3C7;">Current: ${legacyLabel} (Legacy)</option>`;
+                options += `<option disabled>──────────</option>`;
+            }
+
+            // Add all new options
+            manualTypes.forEach(type => {
+                const selected = type.value === currentType ? 'selected' : '';
+                options += `<option value="${type.value}" ${selected}>${type.label}</option>`;
+            });
+
+            return options;
+        }
+
         // Show model details in modal
         async function showModelDetail(modelId) {
             try {
@@ -2149,14 +2188,7 @@
                                                     <span><i class="fas fa-tag mr-1"></i>
                                                         <select onchange="updateManualType('${manual.id}', this.value)"
                                                             class="text-sm border-0 bg-transparent cursor-pointer hover:underline">
-                                                            <option value="installation" ${manual.manualType === 'installation' ? 'selected' : ''}>Installation</option>
-                                                            <option value="service" ${manual.manualType === 'service' ? 'selected' : ''}>Service</option>
-                                                            <option value="parts" ${manual.manualType === 'parts' ? 'selected' : ''}>Parts</option>
-                                                            <option value="technical" ${manual.manualType === 'technical' ? 'selected' : ''}>Technical</option>
-                                                            <option value="troubleshooting" ${manual.manualType === 'troubleshooting' ? 'selected' : ''}>Troubleshooting</option>
-                                                            <option value="operation" ${manual.manualType === 'operation' ? 'selected' : ''}>Operation</option>
-                                                            <option value="warranty" ${manual.manualType === 'warranty' ? 'selected' : ''}>Warranty</option>
-                                                            <option value="other" ${manual.manualType === 'other' ? 'selected' : ''}>Other</option>
+                                                            ${getManualTypeOptions(manual.manualType)}
                                                         </select>
                                                     </span>
                                                     <span><i class="fas fa-file-alt mr-1"></i>${manual.pageCount || 0} pages</span>
