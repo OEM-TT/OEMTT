@@ -954,6 +954,11 @@
                             </h3>
                         </div>
                         <div class="p-6 space-y-3">
+                            <button onclick="showAddOEMModal()"
+                                class="w-full bg-orange-50 hover:bg-orange-100 text-orange-700 px-4 py-3 rounded-lg font-medium text-sm flex items-center justify-center space-x-2">
+                                <i class="fas fa-building"></i>
+                                <span>Add OEM</span>
+                            </button>
                             <button onclick="showAddCategoryModal()"
                                 class="w-full bg-purple-50 hover:bg-purple-100 text-purple-700 px-4 py-3 rounded-lg font-medium text-sm flex items-center justify-center space-x-2">
                                 <i class="fas fa-folder-plus"></i>
@@ -1160,6 +1165,401 @@
                 </div>
                 <div id="model-detail-content" class="p-6 space-y-6">
                     <!-- Dynamic content -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal: Add OEM -->
+        <div id="add-oem-modal"
+            class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+            <div class="bg-white rounded-lg shadow-xl max-w-md w-full">
+                <div class="p-6 border-b border-gray-200">
+                    <h3 class="text-xl font-semibold text-gray-900">Add New OEM</h3>
+                    <p class="text-sm text-gray-500 mt-1">Adding to industry: <strong>HVAC</strong></p>
+                </div>
+                <div class="p-6 space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">OEM Name *</label>
+                        <input type="text" id="new-oem-name" class="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                            placeholder="e.g., York, Rheem, Lennox">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Website</label>
+                        <input type="url" id="new-oem-website"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                            placeholder="e.g., https://www.york.com">
+                    </div>
+                </div>
+                <div class="p-6 border-t border-gray-200 flex justify-end space-x-3">
+                    <button onclick="closeModal('add-oem-modal')"
+                        class="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg">Cancel</button>
+                    <button onclick="createOEM()"
+                        class="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700">Create OEM</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal: Move Category -->
+        <div id="move-category-modal"
+            class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+            <div class="bg-white rounded-lg shadow-xl max-w-md w-full">
+                <div class="p-6 border-b border-gray-200">
+                    <h3 class="text-xl font-semibold text-gray-900">Move Category</h3>
+                </div>
+                <div class="p-6 space-y-4">
+                    <p class="text-sm text-gray-600">Moving: <strong id="move-category-name"></strong></p>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Select Destination OEM *</label>
+                        <select id="move-category-oem-select"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                            <option value="">-- Select OEM --</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="p-6 border-t border-gray-200 flex justify-end space-x-3">
+                    <button onclick="closeModal('move-category-modal')"
+                        class="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg">Cancel</button>
+                    <button onclick="executeMoveCategory()"
+                        class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Move</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal: Move Sub-Category -->
+        <div id="move-subcategory-modal"
+            class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+            <div class="bg-white rounded-lg shadow-xl max-w-md w-full">
+                <div class="p-6 border-b border-gray-200">
+                    <h3 class="text-xl font-semibold text-gray-900">Move Sub-Category</h3>
+                </div>
+                <div class="p-6 space-y-4">
+                    <p class="text-sm text-gray-600">Moving: <strong id="move-subcategory-name"></strong></p>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Select Destination OEM *</label>
+                        <select id="move-subcategory-oem-select"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                            onchange="loadCategoriesForOEM(this.value, 'move-subcategory-category-select')">
+                            <option value="">-- Select OEM --</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Select Destination Category
+                            *</label>
+                        <select id="move-subcategory-category-select"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                            <option value="">-- Select Category --</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="p-6 border-t border-gray-200 flex justify-end space-x-3">
+                    <button onclick="closeModal('move-subcategory-modal')"
+                        class="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg">Cancel</button>
+                    <button onclick="executeMoveSubCategory()"
+                        class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Move</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal: Move Product Line -->
+        <div id="move-productline-modal"
+            class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+            <div class="bg-white rounded-lg shadow-xl max-w-md w-full">
+                <div class="p-6 border-b border-gray-200">
+                    <h3 class="text-xl font-semibold text-gray-900">Move Product Line</h3>
+                </div>
+                <div class="p-6 space-y-4">
+                    <p class="text-sm text-gray-600">Moving: <strong id="move-productline-name"></strong></p>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Select Destination OEM *</label>
+                        <select id="move-productline-oem-select"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                            onchange="loadCategoriesForOEM(this.value, 'move-productline-category-select')">
+                            <option value="">-- Select OEM --</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Select Destination Category
+                            *</label>
+                        <select id="move-productline-category-select"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                            onchange="loadSubCategoriesForCategory(this.value, 'move-productline-subcategory-select')">
+                            <option value="">-- Select Category --</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Select Destination Sub-Category
+                            *</label>
+                        <select id="move-productline-subcategory-select"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                            <option value="">-- Select Sub-Category --</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="p-6 border-t border-gray-200 flex justify-end space-x-3">
+                    <button onclick="closeModal('move-productline-modal')"
+                        class="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg">Cancel</button>
+                    <button onclick="executeMoveProductLine()"
+                        class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Move</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal: Move Model -->
+        <div id="move-model-modal"
+            class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+            <div class="bg-white rounded-lg shadow-xl max-w-md w-full">
+                <div class="p-6 border-b border-gray-200">
+                    <h3 class="text-xl font-semibold text-gray-900">Move Model</h3>
+                </div>
+                <div class="p-6 space-y-4">
+                    <p class="text-sm text-gray-600">Moving: <strong id="move-model-name"></strong></p>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Select Destination OEM *</label>
+                        <select id="move-model-oem-select" class="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                            onchange="loadCategoriesForOEM(this.value, 'move-model-category-select')">
+                            <option value="">-- Select OEM --</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Select Destination Category
+                            *</label>
+                        <select id="move-model-category-select"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                            onchange="loadSubCategoriesForCategory(this.value, 'move-model-subcategory-select')">
+                            <option value="">-- Select Category --</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Select Destination Sub-Category
+                            *</label>
+                        <select id="move-model-subcategory-select"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                            onchange="loadProductLinesForSubCategory(this.value, 'move-model-productline-select')">
+                            <option value="">-- Select Sub-Category --</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Select Destination Product Line
+                            *</label>
+                        <select id="move-model-productline-select"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                            <option value="">-- Select Product Line --</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="p-6 border-t border-gray-200 flex justify-end space-x-3">
+                    <button onclick="closeModal('move-model-modal')"
+                        class="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg">Cancel</button>
+                    <button onclick="executeMoveModel()"
+                        class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Move</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal: Move Manual -->
+        <div id="move-manual-modal"
+            class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+            <div class="bg-white rounded-lg shadow-xl max-w-md w-full">
+                <div class="p-6 border-b border-gray-200">
+                    <h3 class="text-xl font-semibold text-gray-900">Move Manual</h3>
+                </div>
+                <div class="p-6 space-y-4">
+                    <p class="text-sm text-gray-600">Moving: <strong id="move-manual-name"></strong></p>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Select Destination OEM *</label>
+                        <select id="move-manual-oem-select" class="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                            onchange="loadCategoriesForOEM(this.value, 'move-manual-category-select')">
+                            <option value="">-- Select OEM --</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Select Destination Category
+                            *</label>
+                        <select id="move-manual-category-select"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                            onchange="loadSubCategoriesForCategory(this.value, 'move-manual-subcategory-select')">
+                            <option value="">-- Select Category --</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Select Destination Sub-Category
+                            *</label>
+                        <select id="move-manual-subcategory-select"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                            onchange="loadProductLinesForSubCategory(this.value, 'move-manual-productline-select')">
+                            <option value="">-- Select Sub-Category --</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Select Destination Product Line
+                            *</label>
+                        <select id="move-manual-productline-select"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                            onchange="loadModelsForProductLine(this.value, 'move-manual-model-select')">
+                            <option value="">-- Select Product Line --</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Select Destination Model *</label>
+                        <select id="move-manual-model-select"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                            <option value="">-- Select Model --</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="p-6 border-t border-gray-200 flex justify-end space-x-3">
+                    <button onclick="closeModal('move-manual-modal')"
+                        class="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg">Cancel</button>
+                    <button onclick="executeMoveManual()"
+                        class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Move</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal: Edit OEM -->
+        <div id="edit-oem-modal"
+            class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+            <div class="bg-white rounded-lg shadow-xl max-w-md w-full">
+                <div class="p-6 border-b border-gray-200">
+                    <h3 class="text-xl font-semibold text-gray-900">Edit OEM</h3>
+                </div>
+                <div class="p-6 space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">OEM Name *</label>
+                        <input type="text" id="edit-oem-name"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Website</label>
+                        <input type="url" id="edit-oem-website"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="https://">
+                    </div>
+                </div>
+                <div class="p-6 border-t border-gray-200 flex justify-end space-x-3">
+                    <button onclick="closeModal('edit-oem-modal')"
+                        class="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg">Cancel</button>
+                    <button onclick="executeEditOEM()"
+                        class="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700">Save</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal: Edit Category -->
+        <div id="edit-category-modal"
+            class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+            <div class="bg-white rounded-lg shadow-xl max-w-md w-full">
+                <div class="p-6 border-b border-gray-200">
+                    <h3 class="text-xl font-semibold text-gray-900">Edit Category</h3>
+                </div>
+                <div class="p-6 space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Category Name *</label>
+                        <input type="text" id="edit-category-name"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                    </div>
+                </div>
+                <div class="p-6 border-t border-gray-200 flex justify-end space-x-3">
+                    <button onclick="closeModal('edit-category-modal')"
+                        class="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg">Cancel</button>
+                    <button onclick="executeEditCategory()"
+                        class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700">Save</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal: Edit Sub-Category -->
+        <div id="edit-subcategory-modal"
+            class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+            <div class="bg-white rounded-lg shadow-xl max-w-md w-full">
+                <div class="p-6 border-b border-gray-200">
+                    <h3 class="text-xl font-semibold text-gray-900">Edit Sub-Category</h3>
+                </div>
+                <div class="p-6 space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Sub-Category Name *</label>
+                        <input type="text" id="edit-subcategory-name"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                    </div>
+                </div>
+                <div class="p-6 border-t border-gray-200 flex justify-end space-x-3">
+                    <button onclick="closeModal('edit-subcategory-modal')"
+                        class="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg">Cancel</button>
+                    <button onclick="executeEditSubCategory()"
+                        class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">Save</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal: Edit Product Line -->
+        <div id="edit-productline-modal"
+            class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+            <div class="bg-white rounded-lg shadow-xl max-w-md w-full">
+                <div class="p-6 border-b border-gray-200">
+                    <h3 class="text-xl font-semibold text-gray-900">Edit Product Line</h3>
+                </div>
+                <div class="p-6 space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Product Line Name *</label>
+                        <input type="text" id="edit-productline-name"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                    </div>
+                </div>
+                <div class="p-6 border-t border-gray-200 flex justify-end space-x-3">
+                    <button onclick="closeModal('edit-productline-modal')"
+                        class="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg">Cancel</button>
+                    <button onclick="executeEditProductLine()"
+                        class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Save</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal: Edit Model -->
+        <div id="edit-model-modal"
+            class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+            <div class="bg-white rounded-lg shadow-xl max-w-md w-full">
+                <div class="p-6 border-b border-gray-200">
+                    <h3 class="text-xl font-semibold text-gray-900">Edit Model</h3>
+                </div>
+                <div class="p-6 space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Model Number *</label>
+                        <input type="text" id="edit-model-number"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="e.g., 30HXC080">
+                    </div>
+                </div>
+                <div class="p-6 border-t border-gray-200 flex justify-end space-x-3">
+                    <button onclick="closeModal('edit-model-modal')"
+                        class="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg">Cancel</button>
+                    <button onclick="executeEditModel()"
+                        class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">Save</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal: Edit Manual Title -->
+        <div id="edit-manual-modal"
+            class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+            <div class="bg-white rounded-lg shadow-xl max-w-md w-full">
+                <div class="p-6 border-b border-gray-200">
+                    <h3 class="text-xl font-semibold text-gray-900">Edit Manual</h3>
+                </div>
+                <div class="p-6 space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Manual Title *</label>
+                        <input type="text" id="edit-manual-title"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Revision</label>
+                        <input type="text" id="edit-manual-revision"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="e.g., Rev 1.0">
+                    </div>
+                </div>
+                <div class="p-6 border-t border-gray-200 flex justify-end space-x-3">
+                    <button onclick="closeModal('edit-manual-modal')"
+                        class="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg">Cancel</button>
+                    <button onclick="executeEditManual()"
+                        class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">Save</button>
                 </div>
             </div>
         </div>
@@ -1939,20 +2339,24 @@
                     </div>
                     <div id="industry-${industry.slug}" class="hidden pl-4">
                         ${industry.oems.map(oem => `
-                            <div class="border-t border-gray-200">
-                                <div class="px-4 py-2 cursor-pointer hover:bg-gray-50 flex items-center justify-between"
-                                    onclick="toggleTreeNode('oem-${oem.id}')">
-                                    <div class="flex items-center space-x-2">
+                            <div class="border-t border-gray-200 group">
+                                <div class="px-4 py-2 hover:bg-gray-50 flex items-center justify-between">
+                                    <div class="flex items-center space-x-2 cursor-pointer flex-1"
+                                        onclick="toggleTreeNode('oem-${oem.id}')">
                                         <i class="fas fa-chevron-right text-gray-400 transition-transform text-sm" id="chevron-oem-${oem.id}"></i>
                                         <i class="fas fa-building text-blue-600"></i>
                                         <span class="font-medium text-gray-800">${oem.name}</span>
+                                        <span class="text-xs text-gray-500">${oem.categories?.length || 0} categories</span>
                                     </div>
-                                    <span class="text-xs text-gray-500">${oem.categories?.length || 0} categories</span>
+                                    <button onclick="event.stopPropagation(); showEditOEMModal('${oem.id}', '${oem.name}')" 
+                                        class="opacity-0 group-hover:opacity-100 text-gray-600 hover:text-gray-800 px-2 py-1" title="Edit OEM">
+                                        <i class="fas fa-edit text-sm"></i>
+                                    </button>
                                 </div>
                                 <div id="oem-${oem.id}" class="hidden pl-4">
                                     ${(oem.categories || []).map(category => `
                                         <div class="border-t border-gray-200 group">
-                                            <div class="px-4 py-2 hover:bg-gray-50 flex items-center justify-between">
+                                                            <div class="px-4 py-2 hover:bg-gray-50 flex items-center justify-between">
                                                 <div class="flex items-center space-x-2 cursor-pointer flex-1"
                                                     onclick="toggleTreeNode('category-${category.id}')">
                                                     <i class="fas fa-chevron-right text-gray-400 transition-transform text-sm" id="chevron-category-${category.id}"></i>
@@ -1960,10 +2364,20 @@
                                                     <span class="text-gray-700">${category.name}</span>
                                                     <span class="text-xs text-gray-500">${category.subCategories?.length || 0} sub-cats</span>
                                                 </div>
-                                                <button onclick="event.stopPropagation(); deleteCategoryConfirm('${category.id}', '${category.name}')" 
-                                                    class="opacity-0 group-hover:opacity-100 text-red-600 hover:text-red-800 px-2 py-1">
-                                                    <i class="fas fa-trash text-sm"></i>
-                                                </button>
+                                                <div class="flex items-center space-x-1 opacity-0 group-hover:opacity-100">
+                                                    <button onclick="event.stopPropagation(); showEditCategoryModal('${category.id}', '${category.name}')" 
+                                                        class="text-gray-600 hover:text-gray-800 px-2 py-1" title="Edit">
+                                                        <i class="fas fa-edit text-sm"></i>
+                                                    </button>
+                                                    <button onclick="event.stopPropagation(); showMoveCategoryModal('${category.id}', '${category.name}', '${oem.id}')" 
+                                                        class="text-blue-600 hover:text-blue-800 px-2 py-1" title="Move to different OEM">
+                                                        <i class="fas fa-arrow-right text-sm"></i>
+                                                    </button>
+                                                    <button onclick="event.stopPropagation(); deleteCategoryConfirm('${category.id}', '${category.name}')" 
+                                                        class="text-red-600 hover:text-red-800 px-2 py-1" title="Delete">
+                                                        <i class="fas fa-trash text-sm"></i>
+                                                    </button>
+                                                </div>
                                             </div>
                                             <div id="category-${category.id}" class="hidden pl-4">
                                                 ${(category.subCategories || []).map(subCat => `
@@ -1976,10 +2390,20 @@
                                                                 <span class="text-gray-700">${subCat.name}</span>
                                                                 <span class="text-xs text-gray-500">${subCat.productLines?.length || 0} lines</span>
                                                             </div>
-                                                            <button onclick="event.stopPropagation(); deleteSubCategoryConfirm('${subCat.id}', '${subCat.name}')" 
-                                                                class="opacity-0 group-hover:opacity-100 text-red-600 hover:text-red-800 px-2 py-1">
-                                                                <i class="fas fa-trash text-sm"></i>
-                                                            </button>
+                                                            <div class="flex items-center space-x-1 opacity-0 group-hover:opacity-100">
+                                                                <button onclick="event.stopPropagation(); showEditSubCategoryModal('${subCat.id}', '${subCat.name}')" 
+                                                                    class="text-gray-600 hover:text-gray-800 px-2 py-1" title="Edit">
+                                                                    <i class="fas fa-edit text-sm"></i>
+                                                                </button>
+                                                                <button onclick="event.stopPropagation(); showMoveSubCategoryModal('${subCat.id}', '${subCat.name}', '${category.id}', '${oem.id}')" 
+                                                                    class="text-blue-600 hover:text-blue-800 px-2 py-1" title="Move to different category">
+                                                                    <i class="fas fa-arrow-right text-sm"></i>
+                                                                </button>
+                                                                <button onclick="event.stopPropagation(); deleteSubCategoryConfirm('${subCat.id}', '${subCat.name}')" 
+                                                                    class="text-red-600 hover:text-red-800 px-2 py-1" title="Delete">
+                                                                    <i class="fas fa-trash text-sm"></i>
+                                                                </button>
+                                                            </div>
                                                         </div>
                                                         <div id="subcategory-${subCat.id}" class="hidden pl-4">
                                                             ${(subCat.productLines || []).map(line => `
@@ -1992,10 +2416,20 @@
                                                                             <span class="text-gray-700">${line.name}</span>
                                                                             <span class="text-xs text-gray-500">${line.models?.length || 0} models</span>
                                                                         </div>
-                                                                        <button onclick="event.stopPropagation(); deleteProductLineConfirm('${line.id}', '${line.name}')" 
-                                                                            class="opacity-0 group-hover:opacity-100 text-red-600 hover:text-red-800 px-2 py-1">
-                                                                            <i class="fas fa-trash text-sm"></i>
-                                                                        </button>
+                                                                        <div class="flex items-center space-x-1 opacity-0 group-hover:opacity-100">
+                                                                            <button onclick="event.stopPropagation(); showEditProductLineModal('${line.id}', '${line.name}')" 
+                                                                                class="text-gray-600 hover:text-gray-800 px-2 py-1" title="Edit">
+                                                                                <i class="fas fa-edit text-sm"></i>
+                                                                            </button>
+                                                                            <button onclick="event.stopPropagation(); showMoveProductLineModal('${line.id}', '${line.name}', '${subCat.id}', '${category.id}', '${oem.id}')" 
+                                                                                class="text-blue-600 hover:text-blue-800 px-2 py-1" title="Move to different sub-category">
+                                                                                <i class="fas fa-arrow-right text-sm"></i>
+                                                                            </button>
+                                                                            <button onclick="event.stopPropagation(); deleteProductLineConfirm('${line.id}', '${line.name}')" 
+                                                                                class="text-red-600 hover:text-red-800 px-2 py-1" title="Delete">
+                                                                                <i class="fas fa-trash text-sm"></i>
+                                                                            </button>
+                                                                        </div>
                                                                     </div>
                                                                     <div id="productline-${line.id}" class="hidden pl-4">
                                                                         ${(line.models || []).map(model => `
@@ -2006,10 +2440,20 @@
                                                                                     <span class="text-gray-700 font-mono text-sm">${model.modelNumber}</span>
                                                                                     <span class="badge ${model.manualCount > 0 ? 'badge-success' : 'badge-danger'}">${model.manualCount || 0} manuals</span>
                                                                                 </div>
-                                                                                <button onclick="event.stopPropagation(); deleteModelConfirm('${model.id}', '${model.modelNumber}')" 
-                                                                                    class="opacity-0 group-hover:opacity-100 text-red-600 hover:text-red-800 px-2 py-1">
-                                                                                    <i class="fas fa-trash text-sm"></i>
-                                                                                </button>
+                                                                                <div class="flex items-center space-x-1 opacity-0 group-hover:opacity-100">
+                                                                                    <button onclick="event.stopPropagation(); showEditModelModal('${model.id}', '${model.modelNumber}')" 
+                                                                                        class="text-gray-600 hover:text-gray-800 px-2 py-1" title="Edit">
+                                                                                        <i class="fas fa-edit text-sm"></i>
+                                                                                    </button>
+                                                                                    <button onclick="event.stopPropagation(); showMoveModelModal('${model.id}', '${model.modelNumber}', '${line.id}', '${subCat.id}', '${category.id}', '${oem.id}')" 
+                                                                                        class="text-blue-600 hover:text-blue-800 px-2 py-1" title="Move to different product line">
+                                                                                        <i class="fas fa-arrow-right text-sm"></i>
+                                                                                    </button>
+                                                                                    <button onclick="event.stopPropagation(); deleteModelConfirm('${model.id}', '${model.modelNumber}')" 
+                                                                                        class="text-red-600 hover:text-red-800 px-2 py-1" title="Delete">
+                                                                                        <i class="fas fa-trash text-sm"></i>
+                                                                                    </button>
+                                                                                </div>
                                                                             </div>
                                                                         `).join('')}
                                                                     </div>
@@ -2195,10 +2639,20 @@
                                                     <span><i class="fas fa-calendar mr-1"></i>${new Date(manual.createdAt).toLocaleDateString()}</span>
                                                 </div>
                                             </div>
-                                            <button onclick="deleteManualConfirm('${manual.id}', '${manual.title}')"
-                                                class="text-red-600 hover:text-red-800 ml-4">
-                                                <i class="fas fa-trash"></i>
-                                            </button>
+                                            <div class="flex items-center space-x-2 ml-4">
+                                                <button onclick="showEditManualModal('${manual.id}', '${manual.title}', '${manual.revision || ''}')"
+                                                    class="text-gray-600 hover:text-gray-800" title="Edit title/revision">
+                                                    <i class="fas fa-edit"></i>
+                                                </button>
+                                                <button onclick="showMoveManualModal('${manual.id}', '${manual.title}', '${model.id}', '${oem}', '${category}', '${subCategory}', '${productLine}')"
+                                                    class="text-blue-600 hover:text-blue-800" title="Move to different model">
+                                                    <i class="fas fa-arrow-right"></i>
+                                                </button>
+                                                <button onclick="deleteManualConfirm('${manual.id}', '${manual.title}')"
+                                                    class="text-red-600 hover:text-red-800" title="Delete">
+                                                    <i class="fas fa-trash"></i>
+                                                </button>
+                                            </div>
                                         </div>
                                     </div>
                                 `).join('')}
@@ -2308,8 +2762,668 @@
             }
         }
 
-        function refreshTaxonomy() {
-            loadTaxonomy();
+        async function refreshTaxonomy() {
+            await loadTaxonomy();
+        }
+
+        // ============================================
+        // OEM CREATION
+        // ============================================
+        function showAddOEMModal() {
+            document.getElementById('new-oem-name').value = '';
+            document.getElementById('new-oem-website').value = '';
+            document.getElementById('add-oem-modal').classList.remove('hidden');
+        }
+
+        async function createOEM() {
+            const name = document.getElementById('new-oem-name').value.trim();
+            const website = document.getElementById('new-oem-website').value.trim();
+
+            if (!name) {
+                alert('Please enter an OEM name');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/taxonomy/oems', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, website })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok || !data.success) {
+                    alert(`Failed to create OEM: ${data.error || 'Unknown error'}`);
+                    return;
+                }
+
+                alert(`OEM "${name}" created successfully!`);
+                closeModal('add-oem-modal');
+                await refreshTaxonomy();
+                loadOEMsForDropdowns(); // Refresh OEM dropdown
+            } catch (error) {
+                console.error('Failed to create OEM:', error);
+                alert(`Failed to create OEM: ${error.message}`);
+            }
+        }
+
+        // ============================================
+        // MOVE OPERATIONS - MODAL OPENERS
+        // ============================================
+        let moveOperationData = {};
+
+        async function showMoveCategoryModal(categoryId, categoryName, currentOemId) {
+            moveOperationData = { categoryId, currentOemId };
+            document.getElementById('move-category-name').textContent = categoryName;
+
+            // Load OEMs
+            await loadOEMsForSelect('move-category-oem-select', currentOemId);
+
+            document.getElementById('move-category-modal').classList.remove('hidden');
+        }
+
+        async function showMoveSubCategoryModal(subCategoryId, subCategoryName, currentCategoryId, currentOemId) {
+            moveOperationData = { subCategoryId, currentCategoryId, currentOemId };
+            document.getElementById('move-subcategory-name').textContent = subCategoryName;
+
+            // Load OEMs
+            await loadOEMsForSelect('move-subcategory-oem-select', currentOemId);
+
+            document.getElementById('move-subcategory-modal').classList.remove('hidden');
+        }
+
+        async function showMoveProductLineModal(productLineId, productLineName, currentSubCategoryId, currentCategoryId, currentOemId) {
+            moveOperationData = { productLineId, currentSubCategoryId, currentCategoryId, currentOemId };
+            document.getElementById('move-productline-name').textContent = productLineName;
+
+            // Load OEMs
+            await loadOEMsForSelect('move-productline-oem-select', currentOemId);
+
+            document.getElementById('move-productline-modal').classList.remove('hidden');
+        }
+
+        async function showMoveModelModal(modelId, modelNumber, currentProductLineId, currentSubCategoryId, currentCategoryId, currentOemId) {
+            moveOperationData = { modelId, currentProductLineId, currentSubCategoryId, currentCategoryId, currentOemId };
+            document.getElementById('move-model-name').textContent = modelNumber;
+
+            // Load OEMs
+            await loadOEMsForSelect('move-model-oem-select', currentOemId);
+
+            document.getElementById('move-model-modal').classList.remove('hidden');
+        }
+
+        async function showMoveManualModal(manualId, manualTitle, currentModelId, currentOem, currentCategory, currentSubCategory, currentProductLine) {
+            moveOperationData = { manualId, currentModelId, currentOem, currentCategory, currentSubCategory, currentProductLine };
+            document.getElementById('move-manual-name').textContent = manualTitle;
+
+            // Load OEMs - find current OEM ID from taxonomy
+            const tree = await fetchTaxonomyData();
+            const currentOemId = tree.industries[0]?.oems?.find(o => o.name === currentOem)?.id;
+
+            await loadOEMsForSelect('move-manual-oem-select', currentOemId);
+
+            document.getElementById('move-manual-modal').classList.remove('hidden');
+        }
+
+        // ============================================
+        // MOVE OPERATIONS - SELECTORS
+        // ============================================
+        async function loadOEMsForSelect(selectId, currentOemId) {
+            try {
+                const data = await fetchTaxonomyData();
+                const select = document.getElementById(selectId);
+                select.innerHTML = '<option value="">-- Select OEM --</option>';
+
+                data.industries[0]?.oems?.forEach(oem => {
+                    const option = document.createElement('option');
+                    option.value = oem.id;
+                    option.textContent = oem.name;
+                    if (oem.id === currentOemId) {
+                        option.textContent += ' (current)';
+                    }
+                    select.appendChild(option);
+                });
+            } catch (error) {
+                console.error('Failed to load OEMs:', error);
+            }
+        }
+
+        async function loadCategoriesForOEM(oemId, selectId) {
+            if (!oemId) {
+                document.getElementById(selectId).innerHTML = '<option value="">-- Select Category --</option>';
+                return;
+            }
+
+            try {
+                const data = await fetchTaxonomyData();
+                const oem = data.industries[0]?.oems?.find(o => o.id === oemId);
+                const select = document.getElementById(selectId);
+                select.innerHTML = '<option value="">-- Select Category --</option>';
+
+                oem?.categories?.forEach(category => {
+                    const option = document.createElement('option');
+                    option.value = category.id;
+                    option.textContent = category.name;
+                    select.appendChild(option);
+                });
+            } catch (error) {
+                console.error('Failed to load categories:', error);
+            }
+        }
+
+        async function loadSubCategoriesForCategory(categoryId, selectId) {
+            if (!categoryId) {
+                document.getElementById(selectId).innerHTML = '<option value="">-- Select Sub-Category --</option>';
+                return;
+            }
+
+            try {
+                const data = await fetchTaxonomyData();
+                let category = null;
+                for (const oem of data.industries[0]?.oems || []) {
+                    category = oem.categories?.find(c => c.id === categoryId);
+                    if (category) break;
+                }
+
+                const select = document.getElementById(selectId);
+                select.innerHTML = '<option value="">-- Select Sub-Category --</option>';
+
+                category?.subCategories?.forEach(subCat => {
+                    const option = document.createElement('option');
+                    option.value = subCat.id;
+                    option.textContent = subCat.name;
+                    select.appendChild(option);
+                });
+            } catch (error) {
+                console.error('Failed to load sub-categories:', error);
+            }
+        }
+
+        async function loadProductLinesForSubCategory(subCategoryId, selectId) {
+            if (!subCategoryId) {
+                document.getElementById(selectId).innerHTML = '<option value="">-- Select Product Line --</option>';
+                return;
+            }
+
+            try {
+                const data = await fetchTaxonomyData();
+                let subCategory = null;
+                for (const oem of data.industries[0]?.oems || []) {
+                    for (const category of oem.categories || []) {
+                        subCategory = category.subCategories?.find(sc => sc.id === subCategoryId);
+                        if (subCategory) break;
+                    }
+                    if (subCategory) break;
+                }
+
+                const select = document.getElementById(selectId);
+                select.innerHTML = '<option value="">-- Select Product Line --</option>';
+
+                subCategory?.productLines?.forEach(line => {
+                    const option = document.createElement('option');
+                    option.value = line.id;
+                    option.textContent = line.name;
+                    select.appendChild(option);
+                });
+            } catch (error) {
+                console.error('Failed to load product lines:', error);
+            }
+        }
+
+        async function loadModelsForProductLine(productLineId, selectId) {
+            if (!productLineId) {
+                document.getElementById(selectId).innerHTML = '<option value="">-- Select Model --</option>';
+                return;
+            }
+
+            try {
+                const data = await fetchTaxonomyData();
+                let productLine = null;
+                for (const oem of data.industries[0]?.oems || []) {
+                    for (const category of oem.categories || []) {
+                        for (const subCategory of category.subCategories || []) {
+                            productLine = subCategory.productLines?.find(pl => pl.id === productLineId);
+                            if (productLine) break;
+                        }
+                        if (productLine) break;
+                    }
+                    if (productLine) break;
+                }
+
+                const select = document.getElementById(selectId);
+                select.innerHTML = '<option value="">-- Select Model --</option>';
+
+                productLine?.models?.forEach(model => {
+                    const option = document.createElement('option');
+                    option.value = model.id;
+                    option.textContent = model.modelNumber;
+                    select.appendChild(option);
+                });
+            } catch (error) {
+                console.error('Failed to load models:', error);
+            }
+        }
+
+        async function fetchTaxonomyData() {
+            const response = await fetch('/api/taxonomy/tree');
+            return await response.json();
+        }
+
+        // ============================================
+        // MOVE OPERATIONS - EXECUTORS
+        // ============================================
+        async function executeMoveCategory() {
+            const oemId = document.getElementById('move-category-oem-select').value;
+
+            if (!oemId) {
+                alert('Please select a destination OEM');
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/taxonomy/categories/${moveOperationData.categoryId}/move`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ oemId })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok || !data.success) {
+                    alert(`Failed to move category: ${data.error || 'Unknown error'}`);
+                    return;
+                }
+
+                alert('Category moved successfully!');
+                closeModal('move-category-modal');
+                refreshTaxonomy();
+            } catch (error) {
+                console.error('Failed to move category:', error);
+                alert(`Failed to move category: ${error.message}`);
+            }
+        }
+
+        async function executeMoveSubCategory() {
+            const categoryId = document.getElementById('move-subcategory-category-select').value;
+
+            if (!categoryId) {
+                alert('Please select a destination category');
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/taxonomy/sub-categories/${moveOperationData.subCategoryId}/move`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ categoryId })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok || !data.success) {
+                    alert(`Failed to move sub-category: ${data.error || 'Unknown error'}`);
+                    return;
+                }
+
+                alert('Sub-category moved successfully!');
+                closeModal('move-subcategory-modal');
+                refreshTaxonomy();
+            } catch (error) {
+                console.error('Failed to move sub-category:', error);
+                alert(`Failed to move sub-category: ${error.message}`);
+            }
+        }
+
+        async function executeMoveProductLine() {
+            const subCategoryId = document.getElementById('move-productline-subcategory-select').value;
+
+            if (!subCategoryId) {
+                alert('Please select a destination sub-category');
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/taxonomy/product-lines/${moveOperationData.productLineId}/move`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ subCategoryId })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok || !data.success) {
+                    alert(`Failed to move product line: ${data.error || 'Unknown error'}`);
+                    return;
+                }
+
+                alert('Product line moved successfully!');
+                closeModal('move-productline-modal');
+                refreshTaxonomy();
+            } catch (error) {
+                console.error('Failed to move product line:', error);
+                alert(`Failed to move product line: ${error.message}`);
+            }
+        }
+
+        async function executeMoveModel() {
+            const productLineId = document.getElementById('move-model-productline-select').value;
+
+            if (!productLineId) {
+                alert('Please select a destination product line');
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/taxonomy/models/${moveOperationData.modelId}/move`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ productLineId })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok || !data.success) {
+                    alert(`Failed to move model: ${data.error || 'Unknown error'}`);
+                    return;
+                }
+
+                alert('Model moved successfully!');
+                closeModal('move-model-modal');
+                refreshTaxonomy();
+            } catch (error) {
+                console.error('Failed to move model:', error);
+                alert(`Failed to move model: ${error.message}`);
+            }
+        }
+
+        async function executeMoveManual() {
+            const modelId = document.getElementById('move-manual-model-select').value;
+
+            if (!modelId) {
+                alert('Please select a destination model');
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/manuals/${moveOperationData.manualId}/move`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ modelId })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok || !data.success) {
+                    alert(`Failed to move manual: ${data.error || 'Unknown error'}`);
+                    return;
+                }
+
+                alert('Manual moved successfully!');
+                closeModal('move-manual-modal');
+
+                // Close model detail modal if it's open
+                if (!document.getElementById('model-detail-modal').classList.contains('hidden')) {
+                    closeModal('model-detail-modal');
+                }
+
+                refreshTaxonomy();
+            } catch (error) {
+                console.error('Failed to move manual:', error);
+                alert(`Failed to move manual: ${error.message}`);
+            }
+        }
+
+        // ============================================
+        // EDIT OPERATIONS - MODAL OPENERS
+        // ============================================
+        let editOperationData = {};
+
+        function showEditOEMModal(oemId, oemName) {
+            editOperationData = { oemId };
+            document.getElementById('edit-oem-name').value = oemName;
+            document.getElementById('edit-oem-website').value = '';
+            document.getElementById('edit-oem-modal').classList.remove('hidden');
+        }
+
+        function showEditCategoryModal(categoryId, categoryName) {
+            editOperationData = { categoryId };
+            document.getElementById('edit-category-name').value = categoryName;
+            document.getElementById('edit-category-modal').classList.remove('hidden');
+        }
+
+        function showEditSubCategoryModal(subCategoryId, subCategoryName) {
+            editOperationData = { subCategoryId };
+            document.getElementById('edit-subcategory-name').value = subCategoryName;
+            document.getElementById('edit-subcategory-modal').classList.remove('hidden');
+        }
+
+        function showEditProductLineModal(productLineId, productLineName) {
+            editOperationData = { productLineId };
+            document.getElementById('edit-productline-name').value = productLineName;
+            document.getElementById('edit-productline-modal').classList.remove('hidden');
+        }
+
+        function showEditModelModal(modelId, modelNumber) {
+            editOperationData = { modelId };
+            document.getElementById('edit-model-number').value = modelNumber;
+            document.getElementById('edit-model-modal').classList.remove('hidden');
+        }
+
+        function showEditManualModal(manualId, manualTitle, manualRevision) {
+            editOperationData = { manualId };
+            document.getElementById('edit-manual-title').value = manualTitle;
+            document.getElementById('edit-manual-revision').value = manualRevision || '';
+            document.getElementById('edit-manual-modal').classList.remove('hidden');
+        }
+
+        // ============================================
+        // EDIT OPERATIONS - EXECUTORS
+        // ============================================
+        async function executeEditOEM() {
+            const name = document.getElementById('edit-oem-name').value.trim();
+            const website = document.getElementById('edit-oem-website').value.trim();
+
+            if (!name) {
+                alert('Please enter an OEM name');
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/taxonomy/oems/${editOperationData.oemId}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, website })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok || !data.success) {
+                    alert(`Failed to update OEM: ${data.error || 'Unknown error'}`);
+                    return;
+                }
+
+                alert('OEM updated successfully!');
+                closeModal('edit-oem-modal');
+                await refreshTaxonomy();
+                loadOEMsForDropdowns();
+            } catch (error) {
+                console.error('Failed to update OEM:', error);
+                alert(`Failed to update OEM: ${error.message}`);
+            }
+        }
+
+        async function executeEditCategory() {
+            const name = document.getElementById('edit-category-name').value.trim();
+
+            if (!name) {
+                alert('Please enter a category name');
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/taxonomy/categories/${editOperationData.categoryId}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok || !data.success) {
+                    alert(`Failed to update category: ${data.error || 'Unknown error'}`);
+                    return;
+                }
+
+                alert('Category updated successfully!');
+                closeModal('edit-category-modal');
+                refreshTaxonomy();
+            } catch (error) {
+                console.error('Failed to update category:', error);
+                alert(`Failed to update category: ${error.message}`);
+            }
+        }
+
+        async function executeEditSubCategory() {
+            const name = document.getElementById('edit-subcategory-name').value.trim();
+
+            if (!name) {
+                alert('Please enter a sub-category name');
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/taxonomy/sub-categories/${editOperationData.subCategoryId}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok || !data.success) {
+                    alert(`Failed to update sub-category: ${data.error || 'Unknown error'}`);
+                    return;
+                }
+
+                alert('Sub-category updated successfully!');
+                closeModal('edit-subcategory-modal');
+                refreshTaxonomy();
+            } catch (error) {
+                console.error('Failed to update sub-category:', error);
+                alert(`Failed to update sub-category: ${error.message}`);
+            }
+        }
+
+        async function executeEditProductLine() {
+            const name = document.getElementById('edit-productline-name').value.trim();
+
+            if (!name) {
+                alert('Please enter a product line name');
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/taxonomy/product-lines/${editOperationData.productLineId}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok || !data.success) {
+                    alert(`Failed to update product line: ${data.error || 'Unknown error'}`);
+                    return;
+                }
+
+                alert('Product line updated successfully!');
+                closeModal('edit-productline-modal');
+                refreshTaxonomy();
+            } catch (error) {
+                console.error('Failed to update product line:', error);
+                alert(`Failed to update product line: ${error.message}`);
+            }
+        }
+
+        async function executeEditModel() {
+            const modelNumber = document.getElementById('edit-model-number').value.trim();
+
+            if (!modelNumber) {
+                alert('Please enter a model number');
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/taxonomy/models/${editOperationData.modelId}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ modelNumber })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok || !data.success) {
+                    alert(`Failed to update model: ${data.error || 'Unknown error'}`);
+                    return;
+                }
+
+                alert('Model updated successfully!');
+                closeModal('edit-model-modal');
+                refreshTaxonomy();
+            } catch (error) {
+                console.error('Failed to update model:', error);
+                alert(`Failed to update model: ${error.message}`);
+            }
+        }
+
+        async function executeEditManual() {
+            const title = document.getElementById('edit-manual-title').value.trim();
+            const revision = document.getElementById('edit-manual-revision').value.trim();
+
+            if (!title) {
+                alert('Please enter a manual title');
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/manuals/${editOperationData.manualId}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title, revision })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok || !data.success) {
+                    alert(`Failed to update manual: ${data.error || 'Unknown error'}`);
+                    return;
+                }
+
+                alert('Manual updated successfully!');
+                closeModal('edit-manual-modal');
+
+                // Refresh model detail modal if it's open
+                if (!document.getElementById('model-detail-modal').classList.contains('hidden')) {
+                    // Re-open the same model to show updated manual
+                    const modelId = Object.values(taxonomyData.industries[0]?.oems || [])
+                        .flatMap(oem => oem.categories || [])
+                        .flatMap(cat => cat.subCategories || [])
+                        .flatMap(sub => sub.productLines || [])
+                        .flatMap(line => line.models || [])
+                        .find(m => m.manuals?.some(man => man.id === editOperationData.manualId))?.id;
+
+                    if (modelId) {
+                        closeModal('model-detail-modal');
+                        setTimeout(() => showModelDetail(modelId), 100);
+                    }
+                }
+
+                refreshTaxonomy();
+            } catch (error) {
+                console.error('Failed to update manual:', error);
+                alert(`Failed to update manual: ${error.message}`);
+            }
         }
 
         // File upload handlers
@@ -2473,6 +3587,7 @@
 
         // Modal management
         function showAddCategoryModal() {
+            loadOEMsForDropdowns(); // Refresh OEM list
             document.getElementById('add-category-modal').classList.remove('hidden');
         }
 
