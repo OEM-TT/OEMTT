@@ -509,3 +509,460 @@ export async function deleteModel(req: Request, res: Response, next: NextFunctio
     next(error);
   }
 }
+
+/**
+ * Create new OEM
+ */
+export async function createOEM(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { name, website } = req.body;
+
+    if (!name) {
+      return res.status(400).json({
+        success: false,
+        error: 'Name is required',
+      });
+    }
+
+    // Check if OEM already exists
+    const existing = await prisma.oEM.findFirst({
+      where: { name: { equals: name, mode: 'insensitive' } },
+    });
+
+    if (existing) {
+      return res.status(409).json({
+        success: false,
+        error: 'An OEM with this name already exists',
+      });
+    }
+
+    // Create OEM (defaults to HVAC vertical)
+    const oem = await prisma.oEM.create({
+      data: {
+        name,
+        vertical: 'HVAC',
+        ...(website && { website }),
+      },
+    });
+
+    return res.status(201).json({
+      success: true,
+      oem,
+    });
+  } catch (error) {
+    console.error('Error creating OEM:', error);
+    next(error);
+  }
+}
+
+/**
+ * Update OEM details
+ */
+export async function updateOEM(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { id } = req.params;
+    const { name, website } = req.body;
+
+    if (!name) {
+      return res.status(400).json({
+        success: false,
+        error: 'Name is required',
+      });
+    }
+
+    // Check if another OEM with this name exists (excluding current OEM)
+    const existing = await prisma.oEM.findFirst({
+      where: {
+        name: { equals: name, mode: 'insensitive' },
+        NOT: { id: id as string },
+      },
+    });
+
+    if (existing) {
+      return res.status(409).json({
+        success: false,
+        error: 'An OEM with this name already exists',
+      });
+    }
+
+    const updatedOEM = await prisma.oEM.update({
+      where: { id: id as string },
+      data: {
+        name,
+        ...(website !== undefined && { website }),
+      },
+    });
+
+    return res.json({
+      success: true,
+      oem: updatedOEM,
+      message: 'OEM updated successfully',
+    });
+  } catch (error) {
+    console.error('Error updating OEM:', error);
+    next(error);
+  }
+}
+
+/**
+ * Update category details
+ */
+export async function updateCategory(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { id } = req.params;
+    const { name, description } = req.body;
+
+    if (!name) {
+      return res.status(400).json({
+        success: false,
+        error: 'Name is required',
+      });
+    }
+
+    const updatedCategory = await prisma.equipmentCategory.update({
+      where: { id: id as string },
+      data: {
+        name,
+        ...(description !== undefined && { description }),
+      },
+    });
+
+    return res.json({
+      success: true,
+      category: updatedCategory,
+      message: 'Category updated successfully',
+    });
+  } catch (error) {
+    console.error('Error updating category:', error);
+    next(error);
+  }
+}
+
+/**
+ * Update sub-category details
+ */
+export async function updateSubCategory(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { id } = req.params;
+    const { name, description } = req.body;
+
+    if (!name) {
+      return res.status(400).json({
+        success: false,
+        error: 'Name is required',
+      });
+    }
+
+    const updatedSubCategory = await prisma.equipmentSubCategory.update({
+      where: { id: id as string },
+      data: {
+        name,
+        ...(description !== undefined && { description }),
+      },
+    });
+
+    return res.json({
+      success: true,
+      subCategory: updatedSubCategory,
+      message: 'Sub-category updated successfully',
+    });
+  } catch (error) {
+    console.error('Error updating sub-category:', error);
+    next(error);
+  }
+}
+
+/**
+ * Update product line details
+ */
+export async function updateProductLine(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { id } = req.params;
+    const { name, description } = req.body;
+
+    if (!name) {
+      return res.status(400).json({
+        success: false,
+        error: 'Name is required',
+      });
+    }
+
+    const updatedProductLine = await prisma.productLine.update({
+      where: { id: id as string },
+      data: {
+        name,
+        ...(description !== undefined && { description }),
+      },
+    });
+
+    return res.json({
+      success: true,
+      productLine: updatedProductLine,
+      message: 'Product line updated successfully',
+    });
+  } catch (error) {
+    console.error('Error updating product line:', error);
+    next(error);
+  }
+}
+
+/**
+ * Update model details
+ */
+export async function updateModel(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { id } = req.params;
+    const { modelNumber } = req.body;
+
+    if (!modelNumber) {
+      return res.status(400).json({
+        success: false,
+        error: 'Model number is required',
+      });
+    }
+
+    const updatedModel = await prisma.model.update({
+      where: { id: id as string },
+      data: {
+        modelNumber,
+      },
+    });
+
+    return res.json({
+      success: true,
+      model: updatedModel,
+      message: 'Model updated successfully',
+    });
+  } catch (error) {
+    console.error('Error updating model:', error);
+    next(error);
+  }
+}
+
+/**
+ * Move model to different product line
+ */
+export async function moveModel(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { id } = req.params;
+    const { productLineId } = req.body;
+
+    if (!productLineId) {
+      return res.status(400).json({
+        success: false,
+        error: 'productLineId is required',
+      });
+    }
+
+    // Verify model exists
+    const model = await prisma.model.findUnique({
+      where: { id: id as string },
+    });
+
+    if (!model) {
+      return res.status(404).json({
+        success: false,
+        error: 'Model not found',
+      });
+    }
+
+    // Verify target product line exists
+    const productLine = await prisma.productLine.findUnique({
+      where: { id: productLineId },
+    });
+
+    if (!productLine) {
+      return res.status(404).json({
+        success: false,
+        error: 'Target product line not found',
+      });
+    }
+
+    // Move model
+    const updatedModel = await prisma.model.update({
+      where: { id: id as string },
+      data: { productLineId },
+    });
+
+    return res.json({
+      success: true,
+      model: updatedModel,
+      message: 'Model moved successfully',
+    });
+  } catch (error) {
+    console.error('Error moving model:', error);
+    next(error);
+  }
+}
+
+/**
+ * Move product line to different sub-category
+ */
+export async function moveProductLine(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { id } = req.params;
+    const { subCategoryId } = req.body;
+
+    if (!subCategoryId) {
+      return res.status(400).json({
+        success: false,
+        error: 'subCategoryId is required',
+      });
+    }
+
+    // Verify product line exists
+    const productLine = await prisma.productLine.findUnique({
+      where: { id: id as string },
+    });
+
+    if (!productLine) {
+      return res.status(404).json({
+        success: false,
+        error: 'Product line not found',
+      });
+    }
+
+    // Verify target sub-category exists and get category info
+    const subCategory = await prisma.equipmentSubCategory.findUnique({
+      where: { id: subCategoryId },
+      include: { category: true },
+    });
+
+    if (!subCategory) {
+      return res.status(404).json({
+        success: false,
+        error: 'Target sub-category not found',
+      });
+    }
+
+    // Move product line
+    const updatedProductLine = await prisma.productLine.update({
+      where: { id: id as string },
+      data: {
+        subCategoryId,
+        category: subCategory.category.name, // Update category field
+      },
+    });
+
+    return res.json({
+      success: true,
+      productLine: updatedProductLine,
+      message: 'Product line moved successfully',
+    });
+  } catch (error) {
+    console.error('Error moving product line:', error);
+    next(error);
+  }
+}
+
+/**
+ * Move sub-category to different category
+ */
+export async function moveSubCategory(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { id } = req.params;
+    const { categoryId } = req.body;
+
+    if (!categoryId) {
+      return res.status(400).json({
+        success: false,
+        error: 'categoryId is required',
+      });
+    }
+
+    // Verify sub-category exists
+    const subCategory = await prisma.equipmentSubCategory.findUnique({
+      where: { id: id as string },
+    });
+
+    if (!subCategory) {
+      return res.status(404).json({
+        success: false,
+        error: 'Sub-category not found',
+      });
+    }
+
+    // Verify target category exists
+    const category = await prisma.equipmentCategory.findUnique({
+      where: { id: categoryId },
+    });
+
+    if (!category) {
+      return res.status(404).json({
+        success: false,
+        error: 'Target category not found',
+      });
+    }
+
+    // Move sub-category
+    const updatedSubCategory = await prisma.equipmentSubCategory.update({
+      where: { id: id as string },
+      data: { categoryId },
+    });
+
+    return res.json({
+      success: true,
+      subCategory: updatedSubCategory,
+      message: 'Sub-category moved successfully',
+    });
+  } catch (error) {
+    console.error('Error moving sub-category:', error);
+    next(error);
+  }
+}
+
+/**
+ * Move category to different OEM
+ */
+export async function moveCategory(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { id } = req.params;
+    const { oemId } = req.body;
+
+    if (!oemId) {
+      return res.status(400).json({
+        success: false,
+        error: 'oemId is required',
+      });
+    }
+
+    // Verify category exists
+    const category = await prisma.equipmentCategory.findUnique({
+      where: { id: id as string },
+    });
+
+    if (!category) {
+      return res.status(404).json({
+        success: false,
+        error: 'Category not found',
+      });
+    }
+
+    // Verify target OEM exists
+    const oem = await prisma.oEM.findUnique({
+      where: { id: oemId },
+    });
+
+    if (!oem) {
+      return res.status(404).json({
+        success: false,
+        error: 'Target OEM not found',
+      });
+    }
+
+    // Move category
+    const updatedCategory = await prisma.equipmentCategory.update({
+      where: { id: id as string },
+      data: { oemId },
+    });
+
+    return res.json({
+      success: true,
+      category: updatedCategory,
+      message: 'Category moved successfully',
+    });
+  } catch (error) {
+    console.error('Error moving category:', error);
+    next(error);
+  }
+}

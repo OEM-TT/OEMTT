@@ -94,6 +94,16 @@ export async function searchWithDiscovery(req: AuthRequest, res: Response) {
         }
 
         if (existingManuals.length > 0) {
+            // Group manuals by model and score matches
+            const modelGroups = groupAndScoreManuals(existingManuals, modelNumber as string);
+            
+            // If multiple models found (and especially if no OEM specified), return all matches
+            const uniqueModelCount = modelGroups.length;
+            if (uniqueModelCount > 1) {
+                console.log(`✅ Found ${uniqueModelCount} matching models:`, 
+                    modelGroups.map(g => `${g.model.productLine.oem.name} ${g.model.modelNumber} (score: ${g.matchScore})`).join(', ')
+                );
+            }
             console.log(`✅ Found ${existingManuals.length} manual(s) in database`);
 
             // Track successful database search
@@ -108,25 +118,34 @@ export async function searchWithDiscovery(req: AuthRequest, res: Response) {
                 processingTimeMs: Date.now() - searchStartTime,
             });
 
+            // Return flattened list of manuals (frontend will group if needed)
+            // Include match score for each model
             return res.json({
                 success: true,
                 source: 'database',
-                manuals: existingManuals.map(m => ({
-                    id: m.id,
-                    title: m.title,
-                    type: m.manualType,
-                    pageCount: m.pageCount,
-                    sectionsCount: m._count.sections,
-                    sourceUrl: m.sourceUrl,
-                    storagePath: m.storagePath,
-                    model: {
-                        id: m.model.id,
-                        modelNumber: m.model.modelNumber,
-                        oem: m.model.productLine.oem.name,
-                        productLine: m.model.productLine.name,
-                        category: m.model.productLine.category,
-                    },
-                })),
+                matchType: uniqueModelCount > 1 ? 'multiple_models' : 'single_model',
+                modelCount: uniqueModelCount,
+                manuals: existingManuals.map(m => {
+                    // Find match score for this model
+                    const modelGroup = modelGroups.find(g => g.model.id === m.model.id);
+                    return {
+                        id: m.id,
+                        title: m.title,
+                        type: m.manualType,
+                        pageCount: m.pageCount,
+                        sectionsCount: m._count.sections,
+                        sourceUrl: m.sourceUrl,
+                        storagePath: m.storagePath,
+                        model: {
+                            id: m.model.id,
+                            modelNumber: m.model.modelNumber,
+                            oem: m.model.productLine.oem.name,
+                            productLine: m.model.productLine.name,
+                            category: m.model.productLine.category,
+                            matchScore: modelGroup?.matchScore || 0,
+                        },
+                    };
+                }),
             });
         }
 
@@ -548,6 +567,93 @@ async function searchDatabaseExpanded(oem: string, modelNumber: string) {
     });
 
     return manuals;
+}
+
+/**
+ * Helper: Group manuals by model and calculate match scores
+ * Returns models sorted by best match score
+ */
+function groupAndScoreManuals(manuals: any[], searchQuery: string) {
+    const modelMap = new Map();
+    const queryUpper = searchQuery.toUpperCase();
+    const baseModel = extractBaseModel(searchQuery);
+    
+    for (const manual of manuals) {
+        const modelId = manual.model.id;
+        const modelNumber = manual.model.modelNumber;
+        
+        if (!modelMap.has(modelId)) {
+            // Calculate match score for this model
+            const modelUpper = modelNumber.toUpperCase();
+            let score = 0;
+            
+            // Exact match (highest priority)
+            if (modelUpper === queryUpper) {
+                score = 100;
+            }
+            // Base model exact match
+            else if (baseModel && modelUpper === baseModel.toUpperCase()) {
+                score = 90;
+            }
+            // Starts with query
+            else if (modelUpper.startsWith(queryUpper)) {
+                score = 80;
+            }
+            // Starts with base model
+            else if (baseModel && modelUpper.startsWith(baseModel.toUpperCase())) {
+                score = 70;
+            }
+            // Contains query
+            else if (modelUpper.includes(queryUpper)) {
+                score = 60;
+            }
+            // Contains base model
+            else if (baseModel && modelUpper.includes(baseModel.toUpperCase())) {
+                score = 50;
+            }
+            // Fuzzy match (partial overlap)
+            else {
+                // Calculate character overlap
+                const overlap = calculateOverlap(modelUpper, queryUpper);
+                score = Math.min(40, overlap * 10);
+            }
+            
+            modelMap.set(modelId, {
+                model: manual.model,
+                manuals: [manual],
+                matchScore: score,
+                totalSections: manual._count?.sections || 0,
+                totalPages: manual.pageCount || 0,
+            });
+        } else {
+            // Add manual to existing model group
+            const group = modelMap.get(modelId);
+            group.manuals.push(manual);
+            group.totalSections += manual._count?.sections || 0;
+            group.totalPages += manual.pageCount || 0;
+        }
+    }
+    
+    // Convert map to array and sort by match score
+    return Array.from(modelMap.values())
+        .sort((a, b) => b.matchScore - a.matchScore);
+}
+
+/**
+ * Helper: Calculate character overlap between two strings
+ */
+function calculateOverlap(str1: string, str2: string): number {
+    const shorter = str1.length < str2.length ? str1 : str2;
+    const longer = str1.length < str2.length ? str2 : str1;
+    
+    let matches = 0;
+    for (let i = 0; i < shorter.length; i++) {
+        if (longer.includes(shorter[i])) {
+            matches++;
+        }
+    }
+    
+    return matches / shorter.length;
 }
 
 /**

@@ -558,3 +558,59 @@ export async function deleteManual(req: Request, res: Response, next: NextFuncti
     next(error);
   }
 }
+
+/**
+ * Move manual to different model
+ */
+export async function moveManual(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { id } = req.params;
+    const { modelId } = req.body;
+
+    if (!modelId) {
+      return res.status(400).json({
+        success: false,
+        error: 'modelId is required',
+      });
+    }
+
+    // Verify manual exists
+    const manual = await prisma.manual.findUnique({
+      where: { id: id as string },
+    });
+
+    if (!manual) {
+      return res.status(404).json({
+        success: false,
+        error: 'Manual not found',
+      });
+    }
+
+    // Verify target model exists
+    const model = await prisma.model.findUnique({
+      where: { id: modelId },
+    });
+
+    if (!model) {
+      return res.status(404).json({
+        success: false,
+        error: 'Target model not found',
+      });
+    }
+
+    // Move manual
+    const updatedManual = await prisma.manual.update({
+      where: { id: id as string },
+      data: { modelId },
+    });
+
+    return res.json({
+      success: true,
+      manual: updatedManual,
+      message: 'Manual moved successfully',
+    });
+  } catch (error) {
+    console.error('Error moving manual:', error);
+    next(error);
+  }
+}

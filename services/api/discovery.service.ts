@@ -5,16 +5,23 @@ export interface DiscoverySearchResult {
   success: boolean;
   source: 'database' | 'discovery';
   message?: string;
+  matchType?: 'single_model' | 'multiple_models';
+  modelCount?: number;
   manuals?: Array<{
     id: string;
     title: string;
     type: string;
     pageCount: number | null;
     sectionsCount: number;
+    storagePath?: string;
+    sourceUrl?: string;
     model: {
+      id: string;
       oem: string;
       productLine: string;
       modelNumber: string;
+      category?: string;
+      matchScore?: number;
     };
   }>;
   manual?: {
