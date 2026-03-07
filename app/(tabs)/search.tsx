@@ -81,11 +81,6 @@ export default function SearchScreen() {
   };
 
   const handleSearch = async () => {
-    if (!selectedOem) {
-      Alert.alert('Required Field', 'Please select a manufacturer.');
-      return;
-    }
-
     if (!modelNumber.trim()) {
       Alert.alert('Required Field', 'Please enter a model number.');
       return;
@@ -96,7 +91,7 @@ export default function SearchScreen() {
 
     // Progressive loading messages
     const loadingMessages = [
-      'Searching database...',
+      'Searching across all manufacturers...',
       'Manual not found, searching online...',
       'Downloading manual (this may take 30-60 seconds)...',
       'Processing PDF and extracting text...',
@@ -113,10 +108,11 @@ export default function SearchScreen() {
     }, 8000);
 
     try {
-      const selectedOemData = oems.find(o => o.id === selectedOem);
+      // Get OEM name if selected, otherwise search all manufacturers
+      const selectedOemData = selectedOem ? oems.find(o => o.id === selectedOem) : undefined;
       const oemName = selectedOemData?.name || '';
 
-      console.log(`Searching: OEM="${oemName}", Model="${modelNumber}"`);
+      console.log(`Searching: ${oemName ? `OEM="${oemName}"` : 'All OEMs'}, Model="${modelNumber}"`);
       const results = await discoveryService.search(modelNumber.trim(), oemName);
 
       clearInterval(messageInterval);
@@ -244,7 +240,7 @@ export default function SearchScreen() {
     <>
       {/* Manufacturer Selector */}
       <View style={styles.formSection}>
-        <Text style={[styles.label, { color: theme.colors.text }]}>Manufacturer</Text>
+        <Text style={[styles.label, { color: theme.colors.text }]}>Manufacturer <Text style={[styles.optional, { color: theme.colors.textTertiary }]}>(Optional)</Text></Text>
         {loadingOems ? (
           <ActivityIndicator size="small" color={theme.colors.primary} />
         ) : (
@@ -298,13 +294,13 @@ export default function SearchScreen() {
         style={[
           styles.searchButton,
           {
-            backgroundColor: loading || !selectedOem || !modelNumber.trim()
+            backgroundColor: loading || !modelNumber.trim()
               ? theme.colors.disabled
               : theme.colors.primary
           }
         ]}
         onPress={handleSearch}
-        disabled={!selectedOem || !modelNumber.trim() || loading}
+        disabled={!modelNumber.trim() || loading}
       >
         {loading ? (
           <>
@@ -402,7 +398,17 @@ export default function SearchScreen() {
       modelNumber,
       manuals: modelGroups[modelNumber],
       model: modelGroups[modelNumber][0].model, // Use first manual's model data
-    }));
+      matchScore: modelGroups[modelNumber][0].model.matchScore || 0,
+    }))
+      // Sort by match score (highest first)
+      .sort((a, b) => b.matchScore - a.matchScore);
+
+    const getMatchLabel = (score: number) => {
+      if (score >= 90) return { label: 'Exact Match', color: theme.colors.success };
+      if (score >= 70) return { label: 'Good Match', color: theme.colors.primary };
+      if (score >= 50) return { label: 'Partial Match', color: theme.colors.warning };
+      return { label: 'Related', color: theme.colors.textTertiary };
+    };
 
     return (
       <>
@@ -421,29 +427,43 @@ export default function SearchScreen() {
 
         {/* Model list */}
         <View style={styles.resultsList}>
-          {models.map((model, index) => (
-            <TouchableOpacity
-              key={`${model.modelNumber}-${index}`}
-              style={[styles.modelCard, { backgroundColor: isDark ? theme.colors.backgroundSecondary : theme.colors.white }]}
-              onPress={() => handleModelPress(model)}
-            >
-              <View style={[styles.modelIconCircle, { backgroundColor: theme.colors.primary + '15' }]}>
-                <Ionicons name="cube" size={28} color={theme.colors.primary} />
-              </View>
-              <View style={styles.modelCardContent}>
-                <Text style={[styles.modelNumber, { color: theme.colors.text }]}>{model.modelNumber}</Text>
-                <Text style={[styles.modelOem, { color: theme.colors.textSecondary }]}>
-                  {model.model.oem}
-                  {model.model.category && ` • ${model.model.category}`}
-                  {model.model.productLine && ` • ${model.model.productLine}`}
-                </Text>
-                <Text style={[styles.modelManualCount, { color: theme.colors.textTertiary }]}>
-                  {model.manuals.length} {model.manuals.length === 1 ? 'manual' : 'manuals'}
-                </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color={theme.colors.textTertiary} />
-            </TouchableOpacity>
-          ))}
+          {models.map((model, index) => {
+            const matchInfo = getMatchLabel(model.matchScore);
+            return (
+              <TouchableOpacity
+                key={`${model.modelNumber}-${index}`}
+                style={[styles.modelCard, { backgroundColor: isDark ? theme.colors.backgroundSecondary : theme.colors.white }]}
+                onPress={() => handleModelPress(model)}
+              >
+                <View style={[styles.modelIconCircle, { backgroundColor: theme.colors.primary + '15' }]}>
+                  <Ionicons name="cube" size={28} color={theme.colors.primary} />
+                </View>
+                <View style={styles.modelCardContent}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <Text style={[styles.modelNumber, { color: theme.colors.text }]}>{model.modelNumber}</Text>
+                    {model.matchScore >= 50 && (
+                      <View style={[styles.matchBadge, { backgroundColor: matchInfo.color + '20' }]}>
+                        <Text style={[styles.matchBadgeText, { color: matchInfo.color }]}>
+                          {matchInfo.label}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                  <Text style={[styles.modelOem, { color: theme.colors.textSecondary, fontWeight: '600' }]}>
+                    {model.model.oem}
+                  </Text>
+                  <Text style={[styles.modelOem, { color: theme.colors.textSecondary }]}>
+                    {model.model.category && `${model.model.category}`}
+                    {model.model.productLine && ` • ${model.model.productLine}`}
+                  </Text>
+                  <Text style={[styles.modelManualCount, { color: theme.colors.textTertiary }]}>
+                    {model.manuals.length} {model.manuals.length === 1 ? 'manual' : 'manuals'}
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color={theme.colors.textTertiary} />
+              </TouchableOpacity>
+            );
+          })}
         </View>
       </>
     );
@@ -530,6 +550,10 @@ const createStyles = (theme: any) => StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     marginBottom: theme.spacing.sm,
+  },
+  optional: {
+    fontSize: 14,
+    fontWeight: '400',
   },
   oemGrid: {
     flexDirection: 'row',
@@ -627,6 +651,15 @@ const createStyles = (theme: any) => StyleSheet.create({
   modelManualCount: {
     fontSize: 12,
     marginTop: 4,
+  },
+  matchBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 12,
+  },
+  matchBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
   },
   // Manual card styles
   manualCard: {
