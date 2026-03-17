@@ -15,7 +15,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
+import { useCallback } from 'react';
 import { useTheme } from '@/contexts/ThemeContext';
 import { discoveryService } from '@/services/api/discovery.service';
 import { savedUnitsService } from '@/services/api/savedUnits.service';
@@ -37,6 +38,9 @@ export default function AddUnitModal() {
     prefilledOem?: string;
     prefilledModel?: string;
     allManualsForModel?: string;
+    // Returned by scanner modal
+    scannedModel?: string;
+    scannedOem?: string;
   }>();
   const styles = createStyles(theme);
 
@@ -261,6 +265,25 @@ export default function AddUnitModal() {
     }
     fetchManualsForModel();
   }, [step, selectedModel, selectedModelForManuals, selectedOem, oems]);
+
+  // ── Pick up scanned model/OEM when returning from scanner modal ─────────────
+  useFocusEffect(
+    useCallback(() => {
+      if (params.scannedModel && params.scannedModel !== modelNumber) {
+        setModelNumber(params.scannedModel);
+
+        // Auto-select the detected OEM if we can match it
+        if (params.scannedOem && oems.length > 0) {
+          const match = oems.find(
+            (o) =>
+              o.name.toLowerCase().includes(params.scannedOem!.toLowerCase()) ||
+              params.scannedOem!.toLowerCase().includes(o.name.toLowerCase())
+          );
+          if (match) setSelectedOem(match.id);
+        }
+      }
+    }, [params.scannedModel, params.scannedOem, oems])
+  );
 
   // Search for models with auto-discovery
   const handleSearch = async () => {
@@ -580,6 +603,15 @@ export default function AddUnitModal() {
 
       <TouchableOpacity
         style={[styles.secondaryButton, { borderColor: theme.colors.border }]}
+        onPress={() => {
+          const selectedOemData = oems.find((o) => o.id === selectedOem);
+          router.push({
+            pathname: '/(modals)/scanner',
+            params: {
+              preferredOem: selectedOemData?.name || '',
+            },
+          });
+        }}
       >
         <Ionicons name="camera-outline" size={24} color={theme.colors.primary} />
         <Text style={[styles.secondaryButtonText, { color: theme.colors.primary }]}>Scan Serial Plate</Text>

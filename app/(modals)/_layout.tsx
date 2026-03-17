@@ -17,6 +17,16 @@ export default function ModalsLayout() {
           backgroundColor: '#0F172A',
         },
       }}
-    />
+    >
+      <Stack.Screen
+        name="scanner"
+        options={{
+          presentation: 'fullScreenModal',
+          headerShown: false,
+          // Black background so camera fills edge-to-edge
+          contentStyle: { backgroundColor: '#000' },
+        }}
+      />
+    </Stack>
   );
 }

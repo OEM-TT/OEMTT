@@ -321,7 +321,7 @@ export default function SearchScreen() {
 
         <TouchableOpacity
           style={[styles.actionCard, { backgroundColor: isDark ? theme.colors.backgroundSecondary : theme.colors.white }]}
-          onPress={() => Alert.alert('Coming Soon', 'Serial plate scanning will be available in a future update.')}
+          onPress={() => router.push('/(modals)/scanner')}
         >
           <View style={[styles.actionIcon, { backgroundColor: theme.colors.secondary + '15' }]}>
             <Ionicons name="camera" size={24} color={theme.colors.secondary} />
