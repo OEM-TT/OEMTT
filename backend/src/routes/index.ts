@@ -12,6 +12,7 @@ import discoveryRoutes from './discovery.routes';
 import analyticsRoutes from './analytics.routes';
 import taxonomyRoutes from './taxonomy.routes';
 import modelRequestsRoutes from './modelRequests.routes';
+import ocrRoutes from './ocr.routes';
 
 const router = Router();
 
@@ -29,6 +30,7 @@ router.use('/discovery', discoveryRoutes);
 router.use('/analytics', analyticsRoutes);
 router.use('/taxonomy', taxonomyRoutes);
 router.use('/model-requests', modelRequestsRoutes);
+router.use('/ocr', ocrRoutes);
 
 // API info endpoint
 router.get('/', (req, res) => {
@@ -81,6 +83,9 @@ router.get('/', (req, res) => {
           manual: '/api/discovery/manual (POST - auto-discover)',
           search: '/api/discovery/search?oem=Carrier&model=19XR',
           status: '/api/discovery/status/:manualId',
+        },
+        ocr: {
+          extract: '/api/ocr/extract (POST - vision OCR for serial plates)',
         },
       },
     },
