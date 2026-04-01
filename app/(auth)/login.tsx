@@ -1,6 +1,8 @@
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, Alert } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, Alert, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+
+const LOGO = require('@/assets/icon.png');
 import { useState } from 'react';
 import { useRouter } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -117,9 +119,7 @@ export default function LoginScreen() {
         {/* Header */}
         <View style={[styles.header, { backgroundColor: theme.colors.primary }]}>
           <View style={styles.logoContainer}>
-            <View style={[styles.logo, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
-              <Ionicons name="shield-checkmark" size={48} color={theme.colors.white} />
-            </View>
+            <Image source={LOGO} style={styles.logo} />
             <Text style={styles.appName}>OEM TechTalk</Text>
             <Text style={styles.tagline}>Professional Technical Documentation</Text>
           </View>
@@ -239,9 +239,7 @@ const createStyles = (theme: any) => StyleSheet.create({
   logo: {
     width: 96,
     height: 96,
-    borderRadius: 48,
-    alignItems: 'center',
-    justifyContent: 'center',
+    borderRadius: 20,
     marginBottom: theme.spacing.lg,
   },
   appName: {

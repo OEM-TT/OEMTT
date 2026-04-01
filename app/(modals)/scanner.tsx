@@ -264,14 +264,13 @@ export default function ScannerModal() {
       return;
     }
     const detectedOem = result?.detectedOem || detectOemFromText(rawOcrText);
-    router.back();
-    // Use a slight delay so the back navigation completes before params land
-    setTimeout(() => {
-      router.setParams({
+    router.navigate({
+      pathname: '/(tabs)/search',
+      params: {
         scannedModel: finalModel,
         scannedOem: detectedOem || '',
-      });
-    }, 50);
+      },
+    });
   };
 
   // ── Restart scan ──────────────────────────────────────────────────────────
