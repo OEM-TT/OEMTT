@@ -1,8 +1,10 @@
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Dimensions, StatusBar } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Dimensions, StatusBar, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
+
+const LOGO = require('@/assets/icon.png');
 
 const { width } = Dimensions.get('window');
 
@@ -19,8 +21,13 @@ export default function HomeScreen() {
       <View style={[styles.header, { backgroundColor: theme.colors.primary }]}>
         <SafeAreaView edges={['top']}>
           <View style={styles.headerContent}>
-            <Text style={styles.logo}>OEM TechTalk</Text>
-            <Text style={styles.tagline}>Professional Technical Documentation</Text>
+            <View style={styles.headerRow}>
+              <Image source={LOGO} style={styles.headerLogo} />
+              <View>
+                <Text style={styles.logoText}>OEM TechTalk</Text>
+                <Text style={styles.tagline}>Professional Technical Documentation</Text>
+              </View>
+            </View>
           </View>
         </SafeAreaView>
       </View>
@@ -152,16 +159,26 @@ const createStyles = (theme: any) => StyleSheet.create({
     paddingHorizontal: theme.spacing.lg,
     paddingTop: theme.spacing.md,
   },
-  logo: {
-    fontSize: 28,
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+  },
+  headerLogo: {
+    width: 44,
+    height: 44,
+    borderRadius: 10,
+  },
+  logoText: {
+    fontSize: 22,
     fontWeight: '700',
     color: theme.colors.white,
-    marginBottom: theme.spacing.xs,
+    marginBottom: 2,
   },
   tagline: {
-    fontSize: 14,
+    fontSize: 13,
     color: theme.colors.white,
-    opacity: 0.9,
+    opacity: 0.85,
   },
   scrollView: {
     flex: 1,

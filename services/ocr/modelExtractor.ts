@@ -124,8 +124,8 @@ function extractByLabel(text: string): string | null {
     const regex = new RegExp(labelPattern.source + '([A-Z0-9][A-Z0-9\\-\\./ ]{3,25})', 'im');
     const match = text.match(regex);
     if (match?.[1]) {
-      // Trim trailing whitespace/punctuation and take first token if spaced
-      const candidate = match[1].trim().split(/\s{2,}/)[0].replace(/[,;]+$/, '');
+      // Model numbers never contain spaces — take only the first whitespace-delimited token
+      const candidate = match[1].trim().split(/\s+/)[0].replace(/[,;."']+$/, '');
       if (candidate.length >= 4) return candidate;
     }
   }

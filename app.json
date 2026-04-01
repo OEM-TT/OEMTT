@@ -24,9 +24,10 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.oemtechtalk.app",
+      "bundleIdentifier": "com.oemtechtalk.oemtt",
       "infoPlist": {
-        "NSCameraUsageDescription": "We need camera access to scan equipment serial plates and model numbers."
+        "NSCameraUsageDescription": "We need camera access to scan equipment serial plates and model numbers.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -34,7 +35,7 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#2563EB"
       },
-      "package": "com.oemtechtalk.app",
+      "package": "com.oemtechtalk.oemtt",
       "permissions": [
         "CAMERA",
         "READ_EXTERNAL_STORAGE",
@@ -59,7 +60,7 @@
       "router": {
         "origin": false
       },
-      "API_URL": "http://localhost:3000/api",
+      "API_URL": "https://oemtt-yt24.onrender.com/api",
       "SUPABASE_URL": "https://yoggiqlslhutwjhuhqda.supabase.co",
       "SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlvZ2dpcWxzbGh1dHdqaHVocWRhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg2OTUwNzQsImV4cCI6MjA4NDI3MTA3NH0.yq8PZbRjcqKYU1-U5mocw5Kfr4JtyA7iN-OBv0AVVVw",
       "eas": {

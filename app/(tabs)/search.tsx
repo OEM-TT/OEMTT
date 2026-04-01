@@ -1,8 +1,9 @@
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Keyboard, ActivityIndicator, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useState, useEffect } from 'react';
-import { useRouter } from 'expo-router';
+import { useState, useEffect, useRef } from 'react';
+import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
+import { useCallback } from 'react';
 import { useTheme } from '@/contexts/ThemeContext';
 import { discoveryService } from '@/services/api/discovery.service';
 import { oemsService } from '@/services/api/oems.service';
@@ -22,6 +23,9 @@ export default function SearchScreen() {
   const { theme, isDark } = useTheme();
   const router = useRouter();
   const styles = createStyles(theme);
+  const { scannedModel, scannedOem } = useLocalSearchParams<{ scannedModel?: string; scannedOem?: string }>();
+  const handledScanRef = useRef<string | null>(null);
+  const oemsRef = useRef<OEM[]>([]);
 
   // View state
   const [viewState, setViewState] = useState<ViewState>('search');
@@ -45,11 +49,40 @@ export default function SearchScreen() {
   const [popularSearches, setPopularSearches] = useState<PopularSearch[]>([]);
   const [loadingPopular, setLoadingPopular] = useState(true);
 
+  // Keep oemsRef in sync so useFocusEffect can read it without being a dep
+  useEffect(() => {
+    oemsRef.current = oems;
+  }, [oems]);
+
   // Load OEMs and popular searches on mount
   useEffect(() => {
     loadOems();
     loadPopularSearches();
   }, []);
+
+  // Pick up scanned model/OEM when returning from scanner
+  useFocusEffect(
+    useCallback(() => {
+      if (scannedModel && scannedModel !== handledScanRef.current) {
+        handledScanRef.current = scannedModel;
+        setModelNumber(scannedModel);
+        setViewState('search');
+
+        // Try to match OEM via ref — no oems in deps so this doesn't re-fire on every load
+        let matched = undefined;
+        if (scannedOem && oemsRef.current.length > 0) {
+          matched = oemsRef.current.find(
+            (o) => o.name.toLowerCase().includes(scannedOem.toLowerCase()) ||
+              scannedOem.toLowerCase().includes(o.name.toLowerCase())
+          );
+        }
+        setSelectedOem(matched?.id ?? '');
+
+        // Clear the params so stale values don't re-trigger on future focus events
+        router.setParams({ scannedModel: undefined, scannedOem: undefined });
+      }
+    }, [scannedModel, scannedOem]) // oems intentionally excluded — accessed via oemsRef
+  );
 
   const loadOems = async () => {
     try {
@@ -57,10 +90,7 @@ export default function SearchScreen() {
       // Show all OEMs from database
       setOems(data);
 
-      // Auto-select first OEM (typically Carrier)
-      if (data.length > 0) {
-        setSelectedOem(data[0].id);
-      }
+      // No default OEM — user can optionally filter by manufacturer
     } catch (error) {
       console.error('Failed to load OEMs:', error);
       Alert.alert('Error', 'Failed to load manufacturers. Please try again.');
@@ -256,7 +286,7 @@ export default function SearchScreen() {
                     borderWidth: selectedOem === oem.id ? 2 : 1,
                   }
                 ]}
-                onPress={() => setSelectedOem(oem.id)}
+                onPress={() => setSelectedOem(selectedOem === oem.id ? '' : oem.id)}
               >
                 <Text style={[styles.oemName, { color: theme.colors.text }]}>{oem.name}</Text>
               </TouchableOpacity>

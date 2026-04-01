@@ -1,6 +1,22 @@
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { Image, StyleSheet } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
+
+const LOGO = require('@/assets/icon.png');
+
+const HeaderLogo = () => (
+  <Image source={LOGO} style={tabStyles.headerLogo} />
+);
+
+const tabStyles = StyleSheet.create({
+  headerLogo: {
+    width: 32,
+    height: 32,
+    borderRadius: 7,
+    marginLeft: 16,
+  },
+});
 
 export default function TabLayout() {
     const { theme, isDark } = useTheme();
@@ -46,6 +62,7 @@ export default function TabLayout() {
                     tabBarIcon: ({ color, size }) => (
                         <Ionicons name="search" size={size} color={color} />
                     ),
+                    headerLeft: () => <HeaderLogo />,
                 }}
             />
             <Tabs.Screen
@@ -55,6 +72,7 @@ export default function TabLayout() {
                     tabBarIcon: ({ color, size }) => (
                         <Ionicons name="library" size={size} color={color} />
                     ),
+                    headerLeft: () => <HeaderLogo />,
                 }}
             />
             <Tabs.Screen
@@ -64,6 +82,7 @@ export default function TabLayout() {
                     tabBarIcon: ({ color, size }) => (
                         <Ionicons name="person" size={size} color={color} />
                     ),
+                    headerLeft: () => <HeaderLogo />,
                 }}
             />
         </Tabs>

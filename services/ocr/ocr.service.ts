@@ -32,18 +32,22 @@ export async function ocrImage(
   preferredOem?: string
 ): Promise<OcrResult> {
   try {
-    const response = await apiClient.post<{ text: string; error?: string }>(
+    const response = await apiClient.post<{
+      text: string;
+      modelNumber?: string | null;
+      manufacturer?: string | null;
+      error?: string;
+    }>(
       '/ocr/extract',
-      {
-        image: imageBase64,
-        mimeType,
-      },
+      { image: imageBase64, mimeType },
       { timeout: 30000 } // OCR can be slow on first cold-start
     );
 
     const rawText = response.data?.text ?? '';
+    const aiModelNumber = response.data?.modelNumber ?? null;
+    const aiManufacturer = response.data?.manufacturer ?? null;
 
-    if (!rawText) {
+    if (!rawText && !aiModelNumber) {
       return {
         rawText: '',
         extracted: null,
@@ -51,7 +55,20 @@ export async function ocrImage(
       };
     }
 
-    const extracted = extractModelNumber(rawText, preferredOem);
+    // Prefer AI-extracted model number; fall back to regex-based extraction
+    let extracted: ExtractedModel | null = null;
+    if (aiModelNumber) {
+      extracted = {
+        modelNumber: aiModelNumber.trim().toUpperCase(),
+        confidence: 'high',
+        detectedOem: aiManufacturer ?? undefined,
+        method: 'label-match', // GPT read the label directly
+        rawText,
+      };
+    } else {
+      extracted = extractModelNumber(rawText, preferredOem ?? aiManufacturer ?? undefined);
+    }
+
     return { rawText, extracted };
   } catch (err: any) {
     const message =

@@ -28,7 +28,7 @@
         <key>CFBundleURLSchemes</key>
         <array>
           <string>oemtechtalk</string>
-          <string>com.oemtechtalk.app</string>
+          <string>com.oemtechtalk.oemtt</string>
         </array>
       </dict>
     </array>
