@@ -77,6 +77,14 @@ export async function askQuestion(req: AuthRequest, res: Response) {
     // Using 20 sections for better coverage, especially for broad/vague queries
     const context = await gatherChatContext(unitId, currentQuestion, 20, conversationHistory);
 
+    // If this model has zero active manuals, force Perplexity for every question
+    const isManuallessModel = context.manuals.length === 0;
+    if (isManuallessModel) {
+      console.log('🌐 Manual-less model detected — routing ALL questions to Perplexity');
+      context.sourceType = 'needs_web_search';
+      context.confidence = 0.3;
+    }
+
     // Check if we have sufficient manual coverage
     const hasRelevantSections = context.relevantSections.length > 0;
     const avgSimilarity = hasRelevantSections
@@ -146,7 +154,12 @@ export async function askQuestion(req: AuthRequest, res: Response) {
     }
 
     // If no sections found at all, send a clearer message
-    if (!hasRelevantSections) {
+    if (isManuallessModel) {
+      sendEvent('warning', {
+        message: '📡 No manual documentation available yet for this model. Answers are powered by web search.',
+        isManualless: true,
+      });
+    } else if (!hasRelevantSections) {
       sendEvent('warning', {
         message: 'No relevant sections found in the manual for this question. Searching for general information...',
       });

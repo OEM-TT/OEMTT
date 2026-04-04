@@ -156,6 +156,34 @@ export default function SearchScreen() {
         return;
       }
 
+      // Pending source = model exists but no manuals yet
+      if (results.source === 'pending' && results.stubModel) {
+        const stub = results.stubModel;
+        Alert.alert(
+          'Manual Not Available Yet',
+          results.message || "We don't have manuals for this model yet.",
+          [
+            { text: 'OK', style: 'cancel' },
+            {
+              text: 'Save Model Anyway',
+              onPress: () => {
+                router.push({
+                  pathname: '/(modals)/add-unit',
+                  params: {
+                    prefilledOem: stub.oem,
+                    prefilledModel: stub.modelNumber,
+                    stubModelId: stub.id,
+                    mode: 'stub-model',
+                  },
+                });
+              },
+            },
+          ]
+        );
+        setLoading(false);
+        return;
+      }
+
       // Show success message if it was a discovery
       if (results.source === 'discovery' && results.message) {
         Alert.alert('Success!', results.message);

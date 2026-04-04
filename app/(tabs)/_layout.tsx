@@ -3,18 +3,25 @@ import { Ionicons } from '@expo/vector-icons';
 import { Image, StyleSheet } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 
-const LOGO = require('@/assets/icon.png');
+const LOGO_DARK  = require('@/assets/OEMTT_LOGO_DARK.png');
+const LOGO_LIGHT = require('@/assets/OEMTT_LOGO.png');
 
-const HeaderLogo = () => (
-  <Image source={LOGO} style={tabStyles.headerLogo} />
-);
+const HeaderLogo = () => {
+  const { isDark } = useTheme();
+  return (
+    <Image
+      source={isDark ? LOGO_DARK : LOGO_LIGHT}
+      style={tabStyles.headerLogo}
+      resizeMode="contain"
+    />
+  );
+};
 
 const tabStyles = StyleSheet.create({
   headerLogo: {
-    width: 32,
-    height: 32,
-    borderRadius: 7,
-    marginLeft: 16,
+    height: 38,
+    width: 120,
+    marginLeft: -20,
   },
 });
 
@@ -25,10 +32,10 @@ export default function TabLayout() {
         <Tabs
             screenOptions={{
                 tabBarActiveTintColor: theme.colors.primary,
-                tabBarInactiveTintColor: theme.colors.textTertiary,
+                tabBarInactiveTintColor: '#4A6680',
                 tabBarStyle: {
-                    backgroundColor: isDark ? theme.colors.backgroundSecondary : theme.colors.white,
-                    borderTopColor: theme.colors.border,
+                    backgroundColor: '#0D1929',
+                    borderTopColor: '#1E3347',
                     borderTopWidth: 1,
                     height: 84,
                     paddingBottom: 16,
@@ -39,9 +46,9 @@ export default function TabLayout() {
                     fontWeight: '600',
                 },
                 headerStyle: {
-                    backgroundColor: theme.colors.background,
+                    backgroundColor: '#0D1929',
                 },
-                headerTintColor: theme.colors.text,
+                headerTintColor: '#FFFFFF',
                 headerShadowVisible: false,
             }}
         >

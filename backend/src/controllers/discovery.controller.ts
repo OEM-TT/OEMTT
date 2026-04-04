@@ -154,20 +154,21 @@ export async function searchWithDiscovery(req: AuthRequest, res: Response) {
 
         // Check if Perplexity discovery is enabled
         if (!env.ENABLE_PERPLEXITY_DISCOVERY) {
-            console.log('📝 Perplexity discovery disabled - creating model request');
+            console.log('📝 Perplexity discovery disabled - creating stub model & model request');
+
+            const oemName = oem as string || 'Unknown';
+            const modelNum = modelNumber as string;
             
-            // Create or increment model request (handle case where user might not exist in DB yet)
+            // Create or increment model request
             try {
-                // Check if this model has already been requested
                 const existingRequest = await prisma.modelRequest.findFirst({
                     where: {
-                        oemName: { equals: oem as string || 'Unknown', mode: 'insensitive' },
-                        modelNumber: { equals: modelNumber as string, mode: 'insensitive' },
+                        oemName: { equals: oemName, mode: 'insensitive' },
+                        modelNumber: { equals: modelNum, mode: 'insensitive' },
                     },
                 });
 
                 if (existingRequest) {
-                    // Increment existing request count
                     await prisma.modelRequest.update({
                         where: { id: existingRequest.id },
                         data: {
@@ -175,48 +176,62 @@ export async function searchWithDiscovery(req: AuthRequest, res: Response) {
                             lastRequestedAt: new Date(),
                         },
                     });
-                    console.log(`   ✅ Incremented request count for ${oem} ${modelNumber} (now ${existingRequest.requestCount + 1}x)`);
+                    console.log(`   ✅ Incremented request count for ${oemName} ${modelNum} (now ${existingRequest.requestCount + 1}x)`);
                 } else {
-                    // Check if user exists in our database
                     const userExists = await prisma.user.findUnique({
                         where: { id: userId },
                         select: { id: true },
                     });
 
-                    // Create new request (with or without user_id depending on if user exists)
                     await prisma.modelRequest.create({
                         data: {
-                            oemName: oem as string || 'Unknown',
-                            modelNumber: modelNumber as string,
+                            oemName,
+                            modelNumber: modelNum,
                             userId: userExists ? userId : null,
                             requestCount: 1,
                         },
                     });
-                    console.log(`   ✅ Created new model request for ${oem} ${modelNumber}`);
+                    console.log(`   ✅ Created new model request for ${oemName} ${modelNum}`);
                 }
             } catch (error) {
                 console.error('⚠️  Failed to record model request:', error);
-                // Don't fail the whole request if we can't record the model request
+            }
+
+            // Create stub OEM → ProductLine → Model so the user can save a unit
+            let stubModel: any = null;
+            try {
+                stubModel = await findOrCreateStubModel(oemName, modelNum);
+                console.log(`   ✅ Stub model ready: ${stubModel.id}`);
+            } catch (error) {
+                console.error('⚠️  Failed to create stub model:', error);
             }
 
             // Track as failed search (for analytics)
             await trackSearch({
                 userId,
-                oemName: oem as string || 'Unknown',
-                modelNumber: modelNumber as string,
+                oemName,
+                modelNumber: modelNum,
                 searchType: 'failed',
                 foundInDatabase: false,
                 usedPerplexity: false,
                 manualsFound: 0,
                 processingTimeMs: Date.now() - searchStartTime,
-                errorMessage: 'Model not found - request recorded',
+                errorMessage: 'Model not found - stub created',
             });
 
-            return res.status(404).json({
-                success: false,
-                source: 'database',
-                message: "We don't have this manual yet, but we're working on it! We'll notify you when it becomes available.",
-                error: 'Manual not currently in database. Your request has been recorded and our team has been notified.',
+            // Return 200 with stub model so frontend can offer to save
+            return res.json({
+                success: true,
+                source: 'pending',
+                message: "We don't have manuals for this model yet, but we've recorded your request! You can still save this model to your site and chat about it using web search.",
+                manuals: [],
+                stubModel: stubModel ? {
+                    id: stubModel.id,
+                    modelNumber: stubModel.modelNumber,
+                    oem: stubModel.productLine.oem.name,
+                    productLine: stubModel.productLine.name,
+                    category: stubModel.productLine.category,
+                } : null,
             });
         }
 
@@ -654,6 +669,77 @@ function calculateOverlap(str1: string, str2: string): number {
     }
     
     return matches / shorter.length;
+}
+
+/**
+ * Helper: Find or create a stub OEM → ProductLine → Model for manual-less models.
+ * Allows users to save and chat about models before manuals are available.
+ */
+async function findOrCreateStubModel(oemName: string, modelNum: string) {
+    // 1. Find or create OEM
+    let oemRecord = await prisma.oEM.findFirst({
+        where: { name: { equals: oemName, mode: 'insensitive' } },
+    });
+
+    if (!oemRecord) {
+        oemRecord = await prisma.oEM.create({
+            data: {
+                name: oemName,
+                vertical: 'HVAC',
+                status: 'active',
+            },
+        });
+        console.log(`   📝 Created stub OEM: ${oemRecord.name}`);
+    }
+
+    // 2. Find or create a generic product line for this OEM
+    let productLine = await prisma.productLine.findFirst({
+        where: {
+            oemId: oemRecord.id,
+            category: 'General',
+        },
+    });
+
+    if (!productLine) {
+        productLine = await prisma.productLine.create({
+            data: {
+                oemId: oemRecord.id,
+                name: 'General',
+                category: 'General',
+            },
+        });
+        console.log(`   📝 Created stub product line for ${oemRecord.name}`);
+    }
+
+    // 3. Find or create the model
+    let model = await prisma.model.findFirst({
+        where: {
+            productLineId: productLine.id,
+            modelNumber: { equals: modelNum, mode: 'insensitive' },
+        },
+        include: {
+            productLine: {
+                include: { oem: true },
+            },
+        },
+    });
+
+    if (!model) {
+        model = await prisma.model.create({
+            data: {
+                productLineId: productLine.id,
+                modelNumber: modelNum,
+            },
+            include: {
+                productLine: {
+                    include: { oem: true },
+                },
+            },
+        });
+        console.log(`   📝 Created stub model: ${modelNum}`);
+    }
+
+    return model;
 }
 
 /**
