@@ -3,7 +3,7 @@ import { Model, Manual } from '@/types';
 
 export interface DiscoverySearchResult {
   success: boolean;
-  source: 'database' | 'discovery';
+  source: 'database' | 'discovery' | 'pending';
   message?: string;
   matchType?: 'single_model' | 'multiple_models';
   modelCount?: number;
@@ -36,6 +36,13 @@ export interface DiscoverySearchResult {
     totalSections?: number;
     totalPages?: number;
   }>;
+  stubModel?: {
+    id: string;
+    modelNumber: string;
+    oem: string;
+    productLine: string;
+    category?: string;
+  };
 }
 
 interface PopularSearch {

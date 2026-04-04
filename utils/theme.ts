@@ -2,9 +2,12 @@
  * Centralized Theme System
  * 
  * Design tokens for colors, spacing, typography, and more.
- * Modern, sleek, professional palette for OEM TechTalk
+ * FieldLogic Solutions brand palette for OEM TechTalk
  * 
- * Color Philosophy: Deep tech blues, vibrant cyans, professional purples
+ * Color Philosophy: FieldLogic navy, tech green, and bright blue
+ * Green  (#78BE20) — "LOGIC" wordmark & circuit traces
+ * Blue   (#1E90D4) — icon pin/gear shape
+ * Navy   (#0D1929) — brand background
  */
 
 // ============================================
@@ -12,74 +15,76 @@
 // ============================================
 
 const colors = {
-    // Primary Brand Colors - Modern Indigo/Purple
-    primary: '#6366F1',        // Vibrant Indigo - Professional & Modern
-    primaryLight: '#818CF8',   // Light Indigo
-    primaryDark: '#4F46E5',    // Dark Indigo
+    // Primary Brand Colors - FieldLogic Green
+    primary: '#78BE20',        // FieldLogic Green - brand identity
+    primaryLight: '#95D44A',   // Lighter green
+    primaryDark: '#5C9118',    // Darker green
 
-    secondary: '#0EA5E9',      // Cyan Blue - Fresh & Tech
-    secondaryLight: '#38BDF8', // Light Cyan
-    secondaryDark: '#0284C7',  // Dark Cyan
+    // Secondary Brand Colors - FieldLogic Blue
+    secondary: '#1E90D4',      // FieldLogic Blue - icon/tech accent
+    secondaryLight: '#44AAE8', // Lighter blue
+    secondaryDark: '#1470A8',  // Darker blue
 
-    accent: '#8B5CF6',         // Purple - Innovation & Premium
-    accentLight: '#A78BFA',    // Light Purple
-    accentDark: '#7C3AED',     // Dark Purple
+    // Accent - FieldLogic Navy (dark brand background)
+    accent: '#162B44',         // Navy accent for cards, headers
+    accentLight: '#1E3B5C',    // Lighter navy
+    accentDark: '#0D1929',     // Deep navy
 
     // Neutral Colors
     white: '#FFFFFF',
-    black: '#0F172A',          // Slightly softer than pure black
+    black: '#0A1020',          // Near-black with a navy tint
 
-    // Background Colors - Soft & Clean
-    background: '#F8FAFC',          // Soft blue-gray tint
-    backgroundSecondary: '#F1F5F9', // Slightly darker
-    backgroundTertiary: '#E2E8F0',  // Even darker
+    // Background Colors - Clean light mode
+    background: '#F7F9FC',          // Off-white with subtle blue tint
+    backgroundSecondary: '#EDF1F7', // Slightly darker
+    backgroundTertiary: '#DDE4EE',  // Card dividers, borders
 
-    // Text Colors - Improved Hierarchy
-    text: '#0F172A',           // Primary text (slate-900)
-    textSecondary: '#64748B',  // Secondary text (slate-500)
-    textTertiary: '#94A3B8',   // Tertiary text (slate-400)
+    // Text Colors
+    text: '#0D1929',           // Primary text — FieldLogic navy
+    textSecondary: '#4A5F75',  // Secondary text — muted navy
+    textTertiary: '#7A90A4',   // Tertiary text — light navy-gray
     textLight: '#FFFFFF',      // Text on dark backgrounds
 
     // Border Colors
-    border: '#E2E8F0',         // Default border (slate-200)
-    borderLight: '#F1F5F9',    // Light border
-    borderDark: '#CBD5E1',     // Dark border
+    border: '#DDE4EE',         // Default border
+    borderLight: '#EDF1F7',    // Light border
+    borderDark: '#BDCAD8',     // Dark border
 
     // Status Colors
-    success: '#10B981',        // Green - success states
-    successLight: '#34D399',   // Light green
-    successDark: '#059669',    // Dark green
+    success: '#78BE20',        // Reuse brand green for success
+    successLight: '#95D44A',
+    successDark: '#5C9118',
 
     warning: '#F59E0B',        // Amber - warning states
-    warningLight: '#FBBF24',   // Light amber
-    warningDark: '#D97706',    // Dark amber
+    warningLight: '#FBBF24',
+    warningDark: '#D97706',
 
     danger: '#EF4444',         // Red - danger states only
-    dangerLight: '#F87171',    // Light red
-    dangerDark: '#DC2626',     // Dark red
+    dangerLight: '#F87171',
+    dangerDark: '#DC2626',
 
-    info: '#0EA5E9',           // Cyan - info states
-    infoLight: '#38BDF8',      // Light cyan
-    infoDark: '#0284C7',       // Dark cyan
+    info: '#1E90D4',           // Reuse brand blue for info
+    infoLight: '#44AAE8',
+    infoDark: '#1470A8',
 
     // Safety Warning Colors (for equipment manuals)
     safetyDanger: '#EF4444',   // DANGER warnings
     safetyWarning: '#F59E0B',  // WARNING caution
-    safetyCaution: '#0EA5E9',  // CAUTION notices
+    safetyCaution: '#1E90D4',  // CAUTION notices — brand blue
 
     // Overlay Colors
-    overlay: 'rgba(15, 23, 42, 0.6)',      // Dark slate overlay
-    overlayLight: 'rgba(15, 23, 42, 0.3)', // Light slate overlay
+    overlay: 'rgba(13, 25, 41, 0.65)',      // Navy overlay
+    overlayLight: 'rgba(13, 25, 41, 0.35)', // Light navy overlay
 
     // Feature Accent Colors
-    feature1: '#6366F1',       // Indigo - primary features
-    feature2: '#8B5CF6',       // Purple - premium features
-    feature3: '#0EA5E9',       // Cyan - interactive features
+    feature1: '#78BE20',       // Green - primary features
+    feature2: '#1E90D4',       // Blue - interactive features
+    feature3: '#162B44',       // Navy - premium/structural features
 
     // Utility Colors
     transparent: 'transparent',
-    disabled: '#CBD5E1',
-    shadow: 'rgba(15, 23, 42, 0.1)',
+    disabled: '#BDCAD8',
+    shadow: 'rgba(13, 25, 41, 0.12)',
 } as const;
 
 // ============================================
@@ -396,74 +401,76 @@ const components = {
 // ============================================
 
 const darkColors = {
-    // Primary Brand Colors - Brighter for dark mode
-    primary: '#818CF8',        // Lighter Indigo for visibility
-    primaryLight: '#A5B4FC',   // Even lighter
-    primaryDark: '#6366F1',    // Original indigo
+    // Primary Brand Colors - Brighter green for dark mode legibility
+    primary: '#95D44A',        // Lighter FieldLogic green
+    primaryLight: '#AADE6E',   // Even lighter
+    primaryDark: '#78BE20',    // Original brand green
 
-    secondary: '#38BDF8',      // Lighter Cyan
-    secondaryLight: '#7DD3FC', // Even lighter cyan
-    secondaryDark: '#0EA5E9',  // Original cyan
+    // Secondary Brand Colors - Brighter blue for dark mode
+    secondary: '#44AAE8',      // Lighter FieldLogic blue
+    secondaryLight: '#72C0F0', // Even lighter
+    secondaryDark: '#1E90D4',  // Original brand blue
 
-    accent: '#A78BFA',         // Lighter Purple
-    accentLight: '#C4B5FD',    // Even lighter purple
-    accentDark: '#8B5CF6',     // Original purple
+    // Accent - lighter navy for dark mode surfaces
+    accent: '#1E3B5C',         // Lighter navy for dark mode accents
+    accentLight: '#2A4F78',    // Even lighter navy
+    accentDark: '#162B44',     // Deep navy
 
     // Neutral Colors
     white: '#FFFFFF',
     black: '#000000',
 
-    // Background Colors - Dark slate tones
-    background: '#0F172A',          // Dark slate
-    backgroundSecondary: '#1E293B', // Lighter dark slate
-    backgroundTertiary: '#334155',  // Even lighter
+    // Background Colors - True FieldLogic navy tones
+    background: '#0D1929',          // Deep FieldLogic navy
+    backgroundSecondary: '#162438', // Slightly lighter navy
+    backgroundTertiary: '#1E3347',  // Card/surface level
 
-    // Text Colors - Inverted hierarchy
-    text: '#F1F5F9',           // Light text (slate-100)
-    textSecondary: '#CBD5E1',  // Medium light (slate-300)
-    textTertiary: '#94A3B8',   // Dimmer (slate-400)
-    textLight: '#F8FAFC',      // Brightest text
+    // Text Colors - Light on dark navy
+    text: '#E8F0F7',           // Soft white with blue tint
+    textSecondary: '#A8BDD0',  // Muted blue-gray
+    textTertiary: '#6E8DA8',   // Dimmer blue-gray
+    textLight: '#FFFFFF',      // Pure white
 
-    // Border Colors - Subtle in dark mode
-    border: '#334155',         // slate-700
-    borderLight: '#1E293B',    // slate-800
-    borderDark: '#475569',     // slate-600
+    // Border Colors - Subtle navy borders
+    border: '#1E3347',         // Matches backgroundTertiary
+    borderLight: '#162438',    // Matches backgroundSecondary
+    borderDark: '#2A4F78',     // Slightly lighter navy
 
-    // Status Colors - Slightly muted
-    success: '#34D399',        // Lighter green
-    successLight: '#6EE7B7',   // Even lighter
-    successDark: '#10B981',    // Original
+    // Status Colors - Slightly brightened for dark backgrounds
+    success: '#95D44A',        // Lighter brand green
+    successLight: '#AADE6E',
+    successDark: '#78BE20',
 
     warning: '#FBBF24',        // Lighter amber
-    warningLight: '#FCD34D',   // Even lighter
-    warningDark: '#F59E0B',    // Original
+    warningLight: '#FCD34D',
+    warningDark: '#F59E0B',
 
     danger: '#F87171',         // Lighter red
-    dangerLight: '#FCA5A5',    // Even lighter
-    dangerDark: '#EF4444',     // Original
+    dangerLight: '#FCA5A5',
+    dangerDark: '#EF4444',
 
-    info: '#38BDF8',           // Lighter cyan
-    infoLight: '#7DD3FC',      // Even lighter
-    infoDark: '#0EA5E9',       // Original
+    info: '#44AAE8',           // Lighter brand blue
+    infoLight: '#72C0F0',
+    infoDark: '#1E90D4',
 
     // Safety Warning Colors
-    safetyDanger: '#F87171',   
-    safetyWarning: '#FBBF24',  
-    safetyCaution: '#38BDF8',  
+    safetyDanger: '#F87171',
+    safetyWarning: '#FBBF24',
+    safetyCaution: '#44AAE8',
 
-    // Overlay Colors - Lighter for dark mode
-    overlay: 'rgba(0, 0, 0, 0.7)',      
-    overlayLight: 'rgba(0, 0, 0, 0.5)', 
+    // Overlay Colors
+    overlay: 'rgba(0, 0, 0, 0.75)',
+    overlayLight: 'rgba(0, 0, 0, 0.5)',
 
     // Feature Accent Colors
-    feature1: '#818CF8',       
-    feature2: '#A78BFA',       
-    feature3: '#38BDF8',       
+    feature1: '#95D44A',       // Lighter green
+    feature2: '#44AAE8',       // Lighter blue
+    feature3: '#2A4F78',       // Mid navy
 
     // Utility Colors
     transparent: 'transparent',
-    disabled: '#475569',
-    shadow: 'rgba(0, 0, 0, 0.4)',
+    disabled: '#2A4F78',
+    shadow: 'rgba(0, 0, 0, 0.5)',
 } as const;
 
 // ============================================

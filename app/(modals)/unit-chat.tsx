@@ -48,7 +48,7 @@ export default function UnitChatScreen() {
     {
       id: `system-welcome-${Date.now()}`,
       role: 'system',
-      content: `I'm your AI assistant for the ${unitName} (${modelNumber}). Ask me anything about troubleshooting, maintenance, specifications, or service procedures. I have access to the official service manual!`,
+      content: `I'm your AI assistant for the ${unitName} (${modelNumber}). Ask me anything about troubleshooting, maintenance, specifications, or service procedures.`,
       timestamp: new Date(),
     },
   ]);
@@ -56,15 +56,42 @@ export default function UnitChatScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [streamingContent, setStreamingContent] = useState('');
-  const [chatSessionId, setChatSessionId] = useState<string | undefined>(undefined);  // NEW: Track chat session
+  const [chatSessionId, setChatSessionId] = useState<string | undefined>(undefined);
+  const [isManualless, setIsManualless] = useState(false);
   const flatListRef = useRef<FlatList>(null);
   const streamingContentRef = useRef('');
+
+  // Check if this model has manuals — if not, show web-search banner
+  useEffect(() => {
+    async function checkManuals() {
+      try {
+        const unit = await savedUnitsService.getById(unitId);
+        const { modelsService } = await import('@/services/api/models.service');
+        const manuals = await modelsService.getManualsByModel(unit.modelId);
+        if (!manuals || manuals.length === 0) {
+          setIsManualless(true);
+          setMessages(prev => [
+            prev[0],
+            {
+              id: `system-manualless-${Date.now()}`,
+              role: 'system',
+              content: `📡 No manual documentation is available yet for this model. Answers will be powered by web search until manuals are added.`,
+              timestamp: new Date(),
+            },
+          ]);
+        }
+      } catch (e) {
+        console.warn('Could not check manual status:', e);
+      }
+    }
+    if (unitId) checkManuals();
+  }, [unitId]);
 
   // Load previous chat session if sessionId is provided
   useEffect(() => {
     if (sessionId) {
       loadPreviousChat(sessionId);
-      setChatSessionId(sessionId);  // Set the session ID so follow-up questions continue the conversation
+      setChatSessionId(sessionId);
     }
   }, [sessionId]);
 

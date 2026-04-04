@@ -1,29 +1,32 @@
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Dimensions, StatusBar, Image } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, StatusBar, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
 
-const LOGO = require('@/assets/icon.png');
+const LOGO_ICON = require('@/assets/icon_old.png');
 
-const { width } = Dimensions.get('window');
+// Navy surface colors — slightly lighter than the base so cards have depth
+const NAV_BG     = '#0D1929';
+const CARD_BG    = '#162438';
+const CARD_ALT   = '#1A2C44';
 
 export default function HomeScreen() {
-  const { theme, isDark } = useTheme();
+  const { theme } = useTheme();
   const router = useRouter();
   const styles = createStyles(theme);
-  
+
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
-      
-      {/* Header */}
-      <View style={[styles.header, { backgroundColor: theme.colors.primary }]}>
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" />
+
+      {/* Header — always navy */}
+      <View style={styles.header}>
         <SafeAreaView edges={['top']}>
           <View style={styles.headerContent}>
             <View style={styles.headerRow}>
-              <Image source={LOGO} style={styles.headerLogo} />
-              <View>
+              <Image source={LOGO_ICON} style={styles.headerLogo} />
+              <View style={styles.logoTextContainer}>
                 <Text style={styles.logoText}>OEM TechTalk</Text>
                 <Text style={styles.tagline}>Professional Technical Documentation</Text>
               </View>
@@ -32,116 +35,119 @@ export default function HomeScreen() {
         </SafeAreaView>
       </View>
 
-      {/* Main Content */}
-      <ScrollView 
+      <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Hero Section */}
+        {/* Hero */}
         <View style={styles.hero}>
-          <Text style={[styles.title, { color: theme.colors.text }]}>Find Answers Fast</Text>
-          <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>
+          <Text style={styles.title}>Find Answers Fast</Text>
+          <Text style={styles.subtitle}>
             AI-powered search across official OEM documentation
           </Text>
         </View>
 
-        {/* Action Cards */}
+        {/* Action Cards — navy with brand-color accent bar + icon */}
         <View style={styles.actionCards}>
-          <TouchableOpacity 
-            style={[styles.actionCard, styles.primaryCard, { backgroundColor: theme.colors.primary }]}
+          <TouchableOpacity
+            style={[styles.actionCard, styles.actionCardGreen]}
+            activeOpacity={0.85}
             onPress={() => router.push('/(tabs)/search')}
           >
-            <View style={styles.cardContent}>
-              <View style={styles.iconContainer}>
-                <Ionicons name="search" size={28} color={theme.colors.white} />
+            {/* Colored top accent bar */}
+            <View style={[styles.cardAccentBar, { backgroundColor: theme.colors.primary }]} />
+            <View style={styles.cardBody}>
+              <View style={[styles.iconContainer, { backgroundColor: theme.colors.primary + '22' }]}>
+                <Ionicons name="search" size={26} color={theme.colors.primary} />
               </View>
-              <Text style={styles.actionCardTitle}>Search Products</Text>
-              <Text style={styles.actionCardDescription}>
-                Find technical specs and manuals instantly
-              </Text>
+              <View style={styles.cardText}>
+                <Text style={styles.actionCardTitle}>Search Products</Text>
+                <Text style={styles.actionCardDescription}>
+                  Find technical specs and manuals instantly
+                </Text>
+              </View>
               <View style={styles.cardArrow}>
-                <Ionicons name="arrow-forward" size={20} color={theme.colors.white} />
+                <Ionicons name="arrow-forward" size={18} color={theme.colors.primary} />
               </View>
             </View>
           </TouchableOpacity>
 
-          <TouchableOpacity 
-            style={[styles.actionCard, styles.secondaryCard, { backgroundColor: theme.colors.secondary }]}
+          <TouchableOpacity
+            style={[styles.actionCard, styles.actionCardBlue]}
+            activeOpacity={0.85}
             onPress={() => router.push('/(tabs)/library')}
           >
-            <View style={styles.cardContent}>
-              <View style={styles.iconContainer}>
-                <Ionicons name="book" size={28} color={theme.colors.white} />
+            <View style={[styles.cardAccentBar, { backgroundColor: theme.colors.secondary }]} />
+            <View style={styles.cardBody}>
+              <View style={[styles.iconContainer, { backgroundColor: theme.colors.secondary + '22' }]}>
+                <Ionicons name="book" size={26} color={theme.colors.secondary} />
               </View>
-              <Text style={styles.actionCardTitle}>Browse Library</Text>
-              <Text style={styles.actionCardDescription}>
-                Explore your saved manuals and docs
-              </Text>
+              <View style={styles.cardText}>
+                <Text style={styles.actionCardTitle}>Browse Library</Text>
+                <Text style={styles.actionCardDescription}>
+                  Explore your saved manuals and docs
+                </Text>
+              </View>
               <View style={styles.cardArrow}>
-                <Ionicons name="arrow-forward" size={20} color={theme.colors.white} />
+                <Ionicons name="arrow-forward" size={18} color={theme.colors.secondary} />
               </View>
             </View>
           </TouchableOpacity>
         </View>
 
-        {/* Features Section */}
-        <View style={styles.featuresSection}>
-          <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Why OEM TechTalk?</Text>
-          
-          <View style={[styles.featureCard, { backgroundColor: isDark ? theme.colors.backgroundSecondary : theme.colors.white }]}>
-            <View style={[styles.featureIcon, { backgroundColor: theme.colors.feature1 + (isDark ? '30' : '15') }]}>
-              <Ionicons name="shield-checkmark" size={24} color={theme.colors.feature1} />
-            </View>
-            <View style={styles.featureContent}>
-              <Text style={[styles.featureTitle, { color: theme.colors.text }]}>Source-Grounded</Text>
-              <Text style={[styles.featureDescription, { color: theme.colors.textSecondary }]}>
-                Every answer linked directly to official documentation
-              </Text>
-            </View>
+        {/* Stats bar */}
+        <View style={styles.statsSection}>
+          <View style={styles.statItem}>
+            <Text style={[styles.statNumber, { color: theme.colors.primary }]}>1000+</Text>
+            <Text style={styles.statLabel}>Manuals</Text>
           </View>
-
-          <View style={[styles.featureCard, { backgroundColor: isDark ? theme.colors.backgroundSecondary : theme.colors.white }]}>
-            <View style={[styles.featureIcon, { backgroundColor: theme.colors.feature2 + (isDark ? '30' : '15') }]}>
-              <Ionicons name="document-text" size={24} color={theme.colors.feature2} />
-            </View>
-            <View style={styles.featureContent}>
-              <Text style={[styles.featureTitle, { color: theme.colors.text }]}>Official OEM Docs</Text>
-              <Text style={[styles.featureDescription, { color: theme.colors.textSecondary }]}>
-                Direct access to manufacturer specifications
-              </Text>
-            </View>
+          <View style={styles.statDivider} />
+          <View style={styles.statItem}>
+            <Text style={[styles.statNumber, { color: theme.colors.primary }]}>50+</Text>
+            <Text style={styles.statLabel}>OEM Brands</Text>
           </View>
-
-          <View style={[styles.featureCard, { backgroundColor: isDark ? theme.colors.backgroundSecondary : theme.colors.white }]}>
-            <View style={[styles.featureIcon, { backgroundColor: theme.colors.feature3 + (isDark ? '30' : '15') }]}>
-              <Ionicons name="flash" size={24} color={theme.colors.feature3} />
-            </View>
-            <View style={styles.featureContent}>
-              <Text style={[styles.featureTitle, { color: theme.colors.text }]}>AI-Powered Search</Text>
-              <Text style={[styles.featureDescription, { color: theme.colors.textSecondary }]}>
-                Intelligent search understands your technical questions
-              </Text>
-            </View>
+          <View style={styles.statDivider} />
+          <View style={styles.statItem}>
+            <Text style={[styles.statNumber, { color: theme.colors.primary }]}>24/7</Text>
+            <Text style={styles.statLabel}>Access</Text>
           </View>
         </View>
 
-        {/* Stats/Trust Section */}
-        <View style={[styles.statsSection, { backgroundColor: isDark ? theme.colors.backgroundSecondary : theme.colors.white }]}>
-          <View style={styles.statItem}>
-            <Text style={[styles.statNumber, { color: theme.colors.primary }]}>1000+</Text>
-            <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Manuals</Text>
-          </View>
-          <View style={[styles.statDivider, { backgroundColor: theme.colors.border }]} />
-          <View style={styles.statItem}>
-            <Text style={[styles.statNumber, { color: theme.colors.primary }]}>50+</Text>
-            <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>OEM Brands</Text>
-          </View>
-          <View style={[styles.statDivider, { backgroundColor: theme.colors.border }]} />
-          <View style={styles.statItem}>
-            <Text style={[styles.statNumber, { color: theme.colors.primary }]}>24/7</Text>
-            <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Access</Text>
-          </View>
+        {/* Features */}
+        <View style={styles.featuresSection}>
+          <Text style={styles.sectionTitle}>Why OEM TechTalk?</Text>
+
+          {[
+            {
+              icon: 'shield-checkmark' as const,
+              color: theme.colors.primary,
+              title: 'Source-Grounded',
+              desc: 'Every answer linked directly to official documentation',
+            },
+            {
+              icon: 'document-text' as const,
+              color: theme.colors.secondary,
+              title: 'Official OEM Docs',
+              desc: 'Direct access to manufacturer specifications',
+            },
+            {
+              icon: 'flash' as const,
+              color: theme.colors.primary,
+              title: 'AI-Powered Search',
+              desc: 'Intelligent search understands your technical questions',
+            },
+          ].map((f) => (
+            <View key={f.title} style={styles.featureCard}>
+              <View style={[styles.featureIcon, { backgroundColor: f.color + '20' }]}>
+                <Ionicons name={f.icon} size={22} color={f.color} />
+              </View>
+              <View style={styles.featureContent}>
+                <Text style={styles.featureTitle}>{f.title}</Text>
+                <Text style={styles.featureDescription}>{f.desc}</Text>
+              </View>
+            </View>
+          ))}
         </View>
       </ScrollView>
     </View>
@@ -151,34 +157,39 @@ export default function HomeScreen() {
 const createStyles = (theme: any) => StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: NAV_BG,
   },
   header: {
-    paddingBottom: theme.spacing.xl,
+    backgroundColor: NAV_BG,
+    borderBottomWidth: 1,
+    borderBottomColor: '#1E3347',
   },
   headerContent: {
-    paddingHorizontal: theme.spacing.lg,
-    paddingTop: theme.spacing.md,
+    paddingHorizontal: theme.spacing.sm,
+
   },
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: theme.spacing.sm,
   },
   headerLogo: {
-    width: 44,
-    height: 44,
-    borderRadius: 10,
+    width: 60,
+    height: 60,
+    borderRadius: 9,
+  },
+  logoTextContainer: {
+    marginLeft: -8,
   },
   logoText: {
-    fontSize: 22,
+    fontSize: 18,
     fontWeight: '700',
-    color: theme.colors.white,
-    marginBottom: 2,
+    color: '#FFFFFF',
+    letterSpacing: -0.3,
   },
   tagline: {
-    fontSize: 13,
-    color: theme.colors.white,
-    opacity: 0.85,
+    fontSize: 12,
+    color: '#6E8DA8',
+    marginTop: 1,
   },
   scrollView: {
     flex: 1,
@@ -192,125 +203,140 @@ const createStyles = (theme: any) => StyleSheet.create({
     marginBottom: theme.spacing.lg,
   },
   title: {
-    fontSize: 32,
+    fontSize: 30,
     fontWeight: '700',
-    marginBottom: theme.spacing.sm,
+    color: '#FFFFFF',
     letterSpacing: -0.5,
+    marginBottom: theme.spacing.xs,
   },
   subtitle: {
-    fontSize: 16,
-    lineHeight: 24,
+    fontSize: 15,
+    lineHeight: 22,
+    color: '#6E8DA8',
   },
   actionCards: {
-    gap: theme.spacing.md,
+    gap: theme.spacing.sm,
     marginBottom: theme.spacing.xl,
   },
   actionCard: {
-    borderRadius: theme.borderRadius.xl,
+    borderRadius: theme.borderRadius.lg,
     overflow: 'hidden',
-    ...theme.shadows.lg,
+    backgroundColor: CARD_BG,
+    borderWidth: 1,
+    borderColor: '#1E3347',
   },
-  primaryCard: {
-    height: 180,
+  actionCardGreen: {},
+  actionCardBlue: {},
+  cardAccentBar: {
+    height: 3,
+    width: '100%',
   },
-  secondaryCard: {
-    height: 180,
-  },
-  cardContent: {
-    flex: 1,
-    padding: theme.spacing.lg,
-    justifyContent: 'space-between',
+  cardBody: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: theme.spacing.md,
+    gap: theme.spacing.md,
   },
   iconContainer: {
-    width: 56,
-    height: 56,
-    borderRadius: theme.borderRadius.lg,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: theme.spacing.sm,
-  },
-  actionCardTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: theme.colors.white,
-    marginBottom: theme.spacing.xs,
-  },
-  actionCardDescription: {
-    fontSize: 14,
-    color: theme.colors.white,
-    opacity: 0.9,
-    lineHeight: 20,
-  },
-  cardArrow: {
-    position: 'absolute',
-    bottom: theme.spacing.lg,
-    right: theme.spacing.lg,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  featuresSection: {
-    marginBottom: theme.spacing.xl,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    marginBottom: theme.spacing.lg,
-  },
-  featureCard: {
-    flexDirection: 'row',
-    borderRadius: theme.borderRadius.lg,
-    padding: theme.spacing.md,
-    marginBottom: theme.spacing.md,
-    ...theme.shadows.sm,
-  },
-  featureIcon: {
     width: 48,
     height: 48,
     borderRadius: theme.borderRadius.md,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: theme.spacing.md,
+    flexShrink: 0,
   },
-  featureContent: {
+  cardText: {
     flex: 1,
+  },
+  actionCardTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    marginBottom: 3,
+  },
+  actionCardDescription: {
+    fontSize: 13,
+    color: '#6E8DA8',
+    lineHeight: 18,
+  },
+  cardArrow: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#1E3347',
+    alignItems: 'center',
     justifyContent: 'center',
-  },
-  featureTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 2,
-  },
-  featureDescription: {
-    fontSize: 14,
-    lineHeight: 20,
+    flexShrink: 0,
   },
   statsSection: {
     flexDirection: 'row',
-    borderRadius: theme.borderRadius.xl,
+    backgroundColor: CARD_BG,
+    borderRadius: theme.borderRadius.lg,
+    borderWidth: 1,
+    borderColor: '#1E3347',
     padding: theme.spacing.lg,
-    ...theme.shadows.md,
     justifyContent: 'space-around',
     alignItems: 'center',
+    marginBottom: theme.spacing.xl,
   },
   statItem: {
     alignItems: 'center',
   },
   statNumber: {
-    fontSize: 28,
+    fontSize: 26,
     fontWeight: '700',
-    marginBottom: 4,
+    marginBottom: 3,
   },
   statLabel: {
     fontSize: 12,
     fontWeight: '500',
+    color: '#6E8DA8',
   },
   statDivider: {
     width: 1,
-    height: 40,
+    height: 36,
+    backgroundColor: '#1E3347',
+  },
+  featuresSection: {
+    marginBottom: theme.spacing.xl,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    marginBottom: theme.spacing.md,
+  },
+  featureCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: CARD_ALT,
+    borderRadius: theme.borderRadius.lg,
+    padding: theme.spacing.md,
+    marginBottom: theme.spacing.sm,
+    borderWidth: 1,
+    borderColor: '#1E3347',
+    gap: theme.spacing.md,
+  },
+  featureIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: theme.borderRadius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  featureContent: {
+    flex: 1,
+  },
+  featureTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    marginBottom: 3,
+  },
+  featureDescription: {
+    fontSize: 13,
+    lineHeight: 18,
+    color: '#6E8DA8',
   },
 });

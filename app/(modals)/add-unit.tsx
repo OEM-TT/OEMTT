@@ -38,6 +38,7 @@ export default function AddUnitModal() {
     prefilledOem?: string;
     prefilledModel?: string;
     allManualsForModel?: string;
+    stubModelId?: string;
     // Returned by scanner modal
     scannedModel?: string;
     scannedOem?: string;
@@ -46,6 +47,7 @@ export default function AddUnitModal() {
 
   // Check if we're adding to an existing site
   const isAddingToSite = params.mode === 'add-to-site';
+  const isStubModel = params.mode === 'stub-model';
 
   // State
   const [step, setStep] = useState<Step>('search');
@@ -121,6 +123,28 @@ export default function AddUnitModal() {
       setNickname(params.siteName);
     }
   }, [params.siteName]);
+
+  // Handle stub-model mode: skip search, go straight to details
+  useEffect(() => {
+    if (isStubModel && params.stubModelId && params.prefilledModel) {
+      console.log('📝 Stub model mode — skipping to details');
+      setSelectedModel({
+        id: params.stubModelId,
+        modelNumber: params.prefilledModel,
+        productLine: {
+          name: 'General',
+          oem: { name: params.prefilledOem || 'Unknown' },
+        },
+      });
+      setSelectedModelForManuals({
+        model: { id: params.stubModelId, modelNumber: params.prefilledModel, oem: params.prefilledOem || 'Unknown' },
+        manuals: [],
+      });
+      setManualSaveMode('all');
+      setSelectedManualIds([]);
+      setStep('details');
+    }
+  }, [isStubModel, params.stubModelId, params.prefilledModel, params.prefilledOem]);
 
   // useEffect(() => {
   //   if (selectedModel) {
@@ -480,8 +504,8 @@ export default function AddUnitModal() {
       return;
     }
 
-    // Validate manual selection if in custom mode
-    if (manualSaveMode === 'custom' && selectedManualIds.length === 0) {
+    // Validate manual selection if in custom mode (skip for stub models with no manuals)
+    if (manualSaveMode === 'custom' && selectedManualIds.length === 0 && !isStubModel) {
       Alert.alert('No Manuals Selected', 'Please select at least one manual or choose a different option.');
       return;
     }

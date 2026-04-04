@@ -474,22 +474,34 @@ export default function SiteDetailsScreen() {
                     <Text style={styles.expandedSectionTitle}>
                       Manuals ({modelData.manuals.length})
                     </Text>
-                    {modelData.manuals.map((manual) => (
-                      <TouchableOpacity
-                        key={manual.id}
-                        style={styles.manualRow}
-                        onPress={() => handleViewManual(manual)}
-                      >
-                        <Ionicons name="document-text" size={20} color="#A78BFA" />
-                        <View style={styles.manualRowInfo}>
-                          <Text style={styles.manualRowTitle}>{manual.title}</Text>
-                          <Text style={styles.manualRowMeta}>
-                            {manual.manualType} • {manual.pageCount || '?'} pages
+                    {modelData.manuals.length === 0 ? (
+                      <View style={styles.pendingBanner}>
+                        <Ionicons name="globe-outline" size={20} color="#44AAE8" />
+                        <View style={styles.pendingBannerText}>
+                          <Text style={styles.pendingBannerTitle}>No Manuals Yet</Text>
+                          <Text style={styles.pendingBannerDesc}>
+                            We're working on adding documentation. Chat uses web search in the meantime.
                           </Text>
                         </View>
-                        <Ionicons name="chevron-forward" size={18} color="#6B7280" />
-                      </TouchableOpacity>
-                    ))}
+                      </View>
+                    ) : (
+                      modelData.manuals.map((manual) => (
+                        <TouchableOpacity
+                          key={manual.id}
+                          style={styles.manualRow}
+                          onPress={() => handleViewManual(manual)}
+                        >
+                          <Ionicons name="document-text" size={20} color="#A78BFA" />
+                          <View style={styles.manualRowInfo}>
+                            <Text style={styles.manualRowTitle}>{manual.title}</Text>
+                            <Text style={styles.manualRowMeta}>
+                              {manual.manualType} • {manual.pageCount || '?'} pages
+                            </Text>
+                          </View>
+                          <Ionicons name="chevron-forward" size={18} color="#6B7280" />
+                        </TouchableOpacity>
+                      ))
+                    )}
                   </View>
 
                   {/* Previous Chats */}
@@ -824,6 +836,30 @@ const styles = StyleSheet.create({
   manualRowMeta: {
     fontSize: 12,
     color: '#94A3B8',
+  },
+  pendingBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    padding: 14,
+    backgroundColor: 'rgba(68, 170, 232, 0.1)',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(68, 170, 232, 0.25)',
+    gap: 12,
+  },
+  pendingBannerText: {
+    flex: 1,
+  },
+  pendingBannerTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#44AAE8',
+    marginBottom: 3,
+  },
+  pendingBannerDesc: {
+    fontSize: 13,
+    color: '#6E8DA8',
+    lineHeight: 18,
   },
   chatRow: {
     flexDirection: 'row',
