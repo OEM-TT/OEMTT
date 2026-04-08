@@ -2,14 +2,25 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Switch, Alert, Ac
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
-import { useTheme } from '@/contexts/ThemeContext';
+import { useTheme, type ThemePreference } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { usersService } from '@/services/api/users.service';
 
 export default function ProfileScreen() {
-  const { theme, isDark } = useTheme();
+  const { theme, isDark, themePreference, setThemePreference } = useTheme();
   const { user, loading, signOut } = useAuth();
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const styles = createStyles(theme);
+
+  const handleDarkModeToggle = async (enabled: boolean) => {
+    const newPreference: ThemePreference = enabled ? 'dark' : 'system';
+    await setThemePreference(newPreference);
+    try {
+      await usersService.updateMe({ themePreference: newPreference });
+    } catch {
+      // Local preference already saved; backend sync is best-effort
+    }
+  };
 
   const handleLogout = () => {
     Alert.alert(
@@ -150,9 +161,14 @@ export default function ProfileScreen() {
           </TouchableOpacity>
 
           <View style={[styles.settingItem, { backgroundColor: isDark ? theme.colors.backgroundSecondary : theme.colors.white }]}>
-            <Ionicons name={isDark ? 'moon' : 'sunny'} size={22} color={theme.colors.primary} />
-            <Text style={[styles.settingText, { color: theme.colors.text }]}>Theme</Text>
-            <Text style={[styles.settingValueText, { color: theme.colors.textSecondary }]}>System</Text>
+            <Ionicons name={isDark ? 'moon' : 'sunny-outline'} size={22} color={theme.colors.primary} />
+            <Text style={[styles.settingText, { color: theme.colors.text }]}>Dark Mode</Text>
+            <Switch
+              value={themePreference === 'dark'}
+              onValueChange={handleDarkModeToggle}
+              trackColor={{ false: theme.colors.disabled, true: theme.colors.primary }}
+              thumbColor={theme.colors.white}
+            />
           </View>
         </View>
 

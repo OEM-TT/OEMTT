@@ -6,16 +6,12 @@ import { useTheme } from '@/contexts/ThemeContext';
 
 const LOGO_ICON = require('@/assets/icon_old.png');
 
-// Navy surface colors — slightly lighter than the base so cards have depth
-const NAV_BG     = '#0D1929';
-const CARD_BG    = '#162438';
-const CARD_ALT   = '#1A2C44';
 
 export default function HomeScreen() {
   const { theme } = useTheme();
   const router = useRouter();
   const styles = createStyles(theme);
-
+  
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" />
@@ -157,12 +153,12 @@ export default function HomeScreen() {
 const createStyles = (theme: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: NAV_BG,
+    backgroundColor: theme.colors.background,
   },
   header: {
-    backgroundColor: NAV_BG,
+    backgroundColor: theme.colors.background,
     borderBottomWidth: 1,
-    borderBottomColor: '#1E3347',
+    borderBottomColor: theme.colors.border,
   },
   headerContent: {
     paddingHorizontal: theme.spacing.sm,
@@ -183,12 +179,12 @@ const createStyles = (theme: any) => StyleSheet.create({
   logoText: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: theme.colors.text,
     letterSpacing: -0.3,
   },
   tagline: {
     fontSize: 12,
-    color: '#6E8DA8',
+    color: theme.colors.textSecondary,
     marginTop: 1,
   },
   scrollView: {
@@ -205,14 +201,14 @@ const createStyles = (theme: any) => StyleSheet.create({
   title: {
     fontSize: 30,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: theme.colors.text,
     letterSpacing: -0.5,
     marginBottom: theme.spacing.xs,
   },
   subtitle: {
     fontSize: 15,
     lineHeight: 22,
-    color: '#6E8DA8',
+    color: theme.colors.textSecondary,
   },
   actionCards: {
     gap: theme.spacing.sm,
@@ -221,9 +217,9 @@ const createStyles = (theme: any) => StyleSheet.create({
   actionCard: {
     borderRadius: theme.borderRadius.lg,
     overflow: 'hidden',
-    backgroundColor: CARD_BG,
+    backgroundColor: theme.colors.backgroundSecondary,
     borderWidth: 1,
-    borderColor: '#1E3347',
+    borderColor: theme.colors.border,
   },
   actionCardGreen: {},
   actionCardBlue: {},
@@ -251,29 +247,29 @@ const createStyles = (theme: any) => StyleSheet.create({
   actionCardTitle: {
     fontSize: 17,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: theme.colors.text,
     marginBottom: 3,
   },
   actionCardDescription: {
     fontSize: 13,
-    color: '#6E8DA8',
+    color: theme.colors.textSecondary,
     lineHeight: 18,
   },
   cardArrow: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#1E3347',
+    backgroundColor: theme.colors.border,
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
   },
   statsSection: {
     flexDirection: 'row',
-    backgroundColor: CARD_BG,
+    backgroundColor: theme.colors.backgroundSecondary,
     borderRadius: theme.borderRadius.lg,
     borderWidth: 1,
-    borderColor: '#1E3347',
+    borderColor: theme.colors.border,
     padding: theme.spacing.lg,
     justifyContent: 'space-around',
     alignItems: 'center',
@@ -295,7 +291,7 @@ const createStyles = (theme: any) => StyleSheet.create({
   statDivider: {
     width: 1,
     height: 36,
-    backgroundColor: '#1E3347',
+    backgroundColor: theme.colors.border,
   },
   featuresSection: {
     marginBottom: theme.spacing.xl,
@@ -303,18 +299,18 @@ const createStyles = (theme: any) => StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: theme.colors.text,
     marginBottom: theme.spacing.md,
   },
   featureCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: CARD_ALT,
+    backgroundColor: theme.colors.backgroundTertiary,
     borderRadius: theme.borderRadius.lg,
     padding: theme.spacing.md,
     marginBottom: theme.spacing.sm,
     borderWidth: 1,
-    borderColor: '#1E3347',
+    borderColor: theme.colors.border,
     gap: theme.spacing.md,
   },
   featureIcon: {
@@ -331,12 +327,12 @@ const createStyles = (theme: any) => StyleSheet.create({
   featureTitle: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#FFFFFF',
+    color: theme.colors.text,
     marginBottom: 3,
   },
   featureDescription: {
     fontSize: 13,
     lineHeight: 18,
-    color: '#6E8DA8',
+    color: theme.colors.textSecondary,
   },
 });

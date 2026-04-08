@@ -9,6 +9,7 @@ const updateUserSchema = z.object({
     name: z.string().min(1).max(255).optional(),
     phone: z.string().max(50).optional(),
     onboardingCompleted: z.boolean().optional(),
+    themePreference: z.enum(['system', 'light', 'dark']).optional(),
 });
 
 /**
@@ -40,61 +41,32 @@ export async function getCurrentUser(
                 createdAt: true,
                 lastActiveAt: true,
                 onboardingCompleted: true,
+                themePreference: true,
             },
         });
 
         // Auto-create user if they don't exist (first login)
         if (!user) {
-            try {
-                user = await prisma.user.create({
-                    data: {
-                        email: req.user.email,
-                        supabaseUserId: req.user.id,
-                        role: 'technician',
-                        subscriptionTier: 'free',
-                        subscriptionStatus: 'active',
-                    },
-                    select: {
-                        id: true,
-                        email: true,
-                        supabaseUserId: true,
-                        name: true,
-                        phone: true,
-                        role: true,
-                        subscriptionTier: true,
-                        subscriptionStatus: true,
-                        createdAt: true,
-                        lastActiveAt: true,
-                        onboardingCompleted: true,
-                    },
-                });
-            } catch (error: any) {
-                // Handle race condition - user might have been created by another request
-                if (error.code === 'P2002') {
-                    // Unique constraint violation - user already exists, fetch it
-                    user = await prisma.user.findUnique({
-                        where: { supabaseUserId: req.user.id },
-                        select: {
-                            id: true,
-                            email: true,
-                            supabaseUserId: true,
-                            name: true,
-                            phone: true,
-                            role: true,
-                            subscriptionTier: true,
-                            subscriptionStatus: true,
-                            createdAt: true,
-                            lastActiveAt: true,
-                            onboardingCompleted: true,
-                        },
-                    });
-                    if (!user) {
-                        throw new AppError(500, 'Failed to create or find user', 'USER_CREATION_FAILED');
-                    }
-                } else {
-                    throw error;
-                }
-            }
+            user = await prisma.user.create({
+                data: {
+                    email: req.user.email,
+                    supabaseUserId: req.user.id,
+                },
+                select: {
+                    id: true,
+                    email: true,
+                    supabaseUserId: true,
+                    name: true,
+                    phone: true,
+                    role: true,
+                    subscriptionTier: true,
+                    subscriptionStatus: true,
+                    createdAt: true,
+                    lastActiveAt: true,
+                    onboardingCompleted: true,
+                    themePreference: true,
+                },
+            });
         }
 
         // Update last active timestamp
@@ -164,6 +136,7 @@ export async function updateCurrentUser(
                 createdAt: true,
                 lastActiveAt: true,
                 onboardingCompleted: true,
+                themePreference: true,
             },
         });
 

@@ -19,6 +19,7 @@ export interface User {
   createdAt: string;
   lastActiveAt?: string;
   onboardingCompleted: boolean;
+  themePreference?: 'system' | 'light' | 'dark';
 }
 
 export type UserRole = 'technician' | 'admin' | 'company_admin';

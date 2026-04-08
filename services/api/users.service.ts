@@ -10,6 +10,7 @@ export interface UpdateUserInput {
   name?: string;
   phone?: string;
   onboardingCompleted?: boolean;
+  themePreference?: 'system' | 'light' | 'dark';
 }
 
 /**
