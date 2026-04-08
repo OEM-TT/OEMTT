@@ -10,7 +10,7 @@ console.log('🌐 API_URL being used:', API_URL);
 // Create axios instance
 const apiClient: AxiosInstance = axios.create({
   baseURL: API_URL,
-  timeout: 15000,
+  timeout: 30000, // Increased to 30s for Render free tier cold starts
   headers: {
     'Content-Type': 'application/json',
   },
