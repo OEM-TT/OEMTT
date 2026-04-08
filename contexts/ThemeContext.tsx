@@ -1,5 +1,6 @@
-import React, { createContext, useContext, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { useColorScheme } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { lightTheme, darkTheme } from '@/utils/theme';
 
 // ============================================
@@ -7,11 +8,16 @@ import { lightTheme, darkTheme } from '@/utils/theme';
 // ============================================
 
 type Theme = typeof lightTheme;
+export type ThemePreference = 'system' | 'light' | 'dark';
+
+const THEME_PREFERENCE_KEY = 'theme_preference';
 
 interface ThemeContextType {
   theme: Theme;
   isDark: boolean;
   colorScheme: 'light' | 'dark';
+  themePreference: ThemePreference;
+  setThemePreference: (preference: ThemePreference) => Promise<void>;
 }
 
 // ============================================
@@ -29,16 +35,32 @@ interface ThemeProviderProps {
 }
 
 export function ThemeProvider({ children }: ThemeProviderProps) {
-  // Automatically detect system color scheme
   const systemColorScheme = useColorScheme();
-  const colorScheme = systemColorScheme || 'light';
-  const isDark = colorScheme === 'dark';
-  
-  // Select appropriate theme based on system preference
+  const [themePreference, setThemePreferenceState] = useState<ThemePreference>('system');
+
+  useEffect(() => {
+    AsyncStorage.getItem(THEME_PREFERENCE_KEY).then((value) => {
+      if (value === 'light' || value === 'dark' || value === 'system') {
+        setThemePreferenceState(value);
+      }
+    });
+  }, []);
+
+  const setThemePreference = useCallback(async (preference: ThemePreference) => {
+    setThemePreferenceState(preference);
+    await AsyncStorage.setItem(THEME_PREFERENCE_KEY, preference);
+  }, []);
+
+  const effectiveColorScheme: 'light' | 'dark' =
+    themePreference === 'system'
+      ? (systemColorScheme || 'light')
+      : themePreference;
+
+  const isDark = effectiveColorScheme === 'dark';
   const theme = isDark ? darkTheme : lightTheme;
 
   return (
-    <ThemeContext.Provider value={{ theme, isDark, colorScheme }}>
+    <ThemeContext.Provider value={{ theme, isDark, colorScheme: effectiveColorScheme, themePreference, setThemePreference }}>
       {children}
     </ThemeContext.Provider>
   );
@@ -48,27 +70,13 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
 // Custom Hook for Theme Access
 // ============================================
 
-/**
- * Hook to access the current theme
- * Automatically reacts to system color scheme changes
- * 
- * @returns {ThemeContextType} Current theme object and dark mode state
- * 
- * @example
- * const { theme, isDark } = useTheme();
- * const styles = StyleSheet.create({
- *   container: {
- *     backgroundColor: theme.colors.background,
- *   },
- * });
- */
 export function useTheme(): ThemeContextType {
   const context = useContext(ThemeContext);
-  
+
   if (context === undefined) {
     throw new Error('useTheme must be used within a ThemeProvider');
   }
-  
+
   return context;
 }
 

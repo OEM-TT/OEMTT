@@ -9,6 +9,7 @@ const updateUserSchema = z.object({
     name: z.string().min(1).max(255).optional(),
     phone: z.string().max(50).optional(),
     onboardingCompleted: z.boolean().optional(),
+    themePreference: z.enum(['system', 'light', 'dark']).optional(),
 });
 
 /**
@@ -40,6 +41,7 @@ export async function getCurrentUser(
                 createdAt: true,
                 lastActiveAt: true,
                 onboardingCompleted: true,
+                themePreference: true,
             },
         });
 
@@ -62,6 +64,7 @@ export async function getCurrentUser(
                     createdAt: true,
                     lastActiveAt: true,
                     onboardingCompleted: true,
+                    themePreference: true,
                 },
             });
         }
@@ -133,6 +136,7 @@ export async function updateCurrentUser(
                 createdAt: true,
                 lastActiveAt: true,
                 onboardingCompleted: true,
+                themePreference: true,
             },
         });
 

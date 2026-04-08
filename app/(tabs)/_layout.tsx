@@ -4,7 +4,7 @@ import { Image, StyleSheet } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 
 const LOGO_DARK  = require('@/assets/OEMTT_LOGO_DARK.png');
-const LOGO_LIGHT = require('@/assets/OEMTT_LOGO.png');
+const LOGO_LIGHT = require('@/assets/OEMTT_LOGO_LIGHT.png');
 
 const HeaderLogo = () => {
   const { isDark } = useTheme();
@@ -34,8 +34,8 @@ export default function TabLayout() {
                 tabBarActiveTintColor: theme.colors.primary,
                 tabBarInactiveTintColor: '#4A6680',
                 tabBarStyle: {
-                    backgroundColor: '#0D1929',
-                    borderTopColor: '#1E3347',
+                    backgroundColor: theme.colors.background,
+                    borderTopColor: theme.colors.border,
                     borderTopWidth: 1,
                     height: 84,
                     paddingBottom: 16,
@@ -46,9 +46,9 @@ export default function TabLayout() {
                     fontWeight: '600',
                 },
                 headerStyle: {
-                    backgroundColor: '#0D1929',
+                    backgroundColor: theme.colors.background,
                 },
-                headerTintColor: '#FFFFFF',
+                headerTintColor: theme.colors.text,
                 headerShadowVisible: false,
             }}
         >

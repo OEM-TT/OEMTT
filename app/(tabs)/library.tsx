@@ -215,11 +215,11 @@ export default function LibraryScreen() {
 
             {/* Add Unit Button */}
             <TouchableOpacity
-              style={[styles.addButton, { borderColor: theme.colors.border }]}
+              style={[styles.addButton, { borderColor: theme.colors.primary }]}
               onPress={() => router.push('/(modals)/add-unit')}
             >
-              <Ionicons name="add-circle-outline" size={24} color={theme.colors.primary} />
-              <Text style={[styles.addButtonText, { color: theme.colors.primary }]}>Add New Unit</Text>
+              <Ionicons name="add-circle-outline" size={24} color={theme.colors.text} />
+              <Text style={[styles.addButtonText, { color: theme.colors.text }]}>Add Site</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -357,6 +357,7 @@ const createStyles = (theme: any) => StyleSheet.create({
     borderRadius: theme.borderRadius.lg,
     borderWidth: 2,
     borderStyle: 'dashed',
+    backgroundColor: theme.colors.primary + '20',
     gap: theme.spacing.sm,
     marginTop: theme.spacing.sm,
   },

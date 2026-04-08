@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useRouter, useSegments } from 'expo-router';
 import { authService } from '@/services/auth';
+import { useTheme } from '@/contexts/ThemeContext';
 import type { User } from '@supabase/supabase-js';
 
 interface AuthContextType {
@@ -17,6 +18,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const router = useRouter();
   const segments = useSegments();
+  const { setThemePreference } = useTheme();
 
   // Check authentication status
   useEffect(() => {
@@ -51,12 +53,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           console.log('✅ User authenticated:', currentUser.email);
           setUser(currentUser);
 
-          // Call /api/users/me to ensure user record exists in app's database
           console.log('🔄 Calling /users/me to sync user...');
           try {
             const { usersService } = await import('@/services/api/users.service');
-            await usersService.getMe();
+            const appUser = await usersService.getMe();
             console.log('✅ User synced with backend database.');
+
+            if (appUser.themePreference && appUser.themePreference !== 'system') {
+              await setThemePreference(appUser.themePreference);
+            }
           } catch (apiError) {
             console.error('❌ Failed to sync user with backend database:', apiError);
           }

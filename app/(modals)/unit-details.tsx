@@ -28,6 +28,8 @@ import { savedUnitsService, SavedUnitWithDetails } from '@/services/api/savedUni
 import { modelsService } from '@/services/api/models.service';
 import * as chatService from '@/services/api/chat.service';
 import { getManualPublicUrl } from '@/services/supabase';
+import { theme } from '@/utils/theme';
+import { useTheme } from '@/contexts/ThemeContext';
 
 interface Manual {
   id: string;
@@ -53,7 +55,8 @@ export default function SiteDetailsScreen() {
   const unitId = typeof params.id === 'string' ? params.id : '';
   const siteNameParam = typeof params.siteName === 'string' ? params.siteName : '';
   const router = useRouter();
-
+  const { theme } = useTheme();
+  const styles = createStyles(theme);
   const [siteName, setSiteName] = useState<string>(siteNameParam);
   const [models, setModels] = useState<ModelWithManuals[]>([]);
   const [loading, setLoading] = useState(true);
@@ -347,7 +350,7 @@ export default function SiteDetailsScreen() {
     return (
       <View style={styles.container}>
         <View style={styles.centerContent}>
-          <ActivityIndicator size="large" color="#A78BFA" />
+          <ActivityIndicator size="large" color={theme.colors.primary} />
         </View>
       </View>
     );
@@ -378,10 +381,10 @@ export default function SiteDetailsScreen() {
             style={styles.editButton}
             onPress={handleEditSite}
           >
-            <Ionicons name="pencil" size={20} color="#A78BFA" />
+            <Ionicons name="pencil" size={20} color={theme.colors.textSecondary} />
           </TouchableOpacity>
           <View style={styles.iconContainer}>
-            <Ionicons name="business" size={48} color="#A78BFA" />
+            <Ionicons name="business" size={48} color={theme.colors.backgroundSecondary} />
           </View>
           <Text style={styles.siteName}>{siteName}</Text>
           <Text style={styles.modelCount}>
@@ -394,7 +397,7 @@ export default function SiteDetailsScreen() {
           style={[styles.actionButton, styles.primaryAction]}
           onPress={handleAskAI}
         >
-          <Ionicons name="chatbubbles" size={24} color="#ffffff" />
+          <Ionicons name="chatbubbles" size={24} color={theme.colors.textSecondary} />
           <Text style={styles.actionButtonTextPrimary}>Ask AI About This Unit</Text>
         </TouchableOpacity>
 
@@ -409,8 +412,10 @@ export default function SiteDetailsScreen() {
                 style={styles.modelCard}
                 onPress={() => toggleModelExpanded(modelData.unit.id)}
               >
+                <View style={styles.modelIconWrapper}>
                 <View style={styles.modelIcon}>
-                  <Ionicons name="cube" size={28} color="#A78BFA" />
+                  <Ionicons name="cube" size={28} color={theme.colors.primary} />
+                </View>
                 </View>
                 <View style={styles.modelInfo}>
                   <Text style={styles.modelNumber}>{modelData.unit.model.modelNumber}</Text>
@@ -427,7 +432,7 @@ export default function SiteDetailsScreen() {
                     {deletingModelId === modelData.unit.id ? (
                       <ActivityIndicator size="small" color="#DC2626" />
                     ) : (
-                      <Ionicons name="trash-outline" size={20} color="#DC2626" />
+                      <Ionicons name="trash-outline" size={20} color={theme.colors.danger} />
                     )}
                   </TouchableOpacity>
                   <Ionicons
@@ -541,7 +546,7 @@ export default function SiteDetailsScreen() {
           style={[styles.actionButton, styles.secondaryAction]}
           onPress={handleAddModel}
         >
-          <Ionicons name="add-circle-outline" size={24} color="#A78BFA" />
+          <Ionicons name="add-circle-outline" size={24} color={theme.colors.secondary} />
           <Text style={styles.actionButtonTextSecondary}>Add Model to Site</Text>
         </TouchableOpacity>
 
@@ -550,7 +555,7 @@ export default function SiteDetailsScreen() {
           style={styles.deleteButton}
           onPress={handleDeleteSite}
         >
-          <Ionicons name="trash-outline" size={20} color="#DC2626" />
+          <Ionicons name="trash-outline" size={20} color={theme.colors.danger} />
           <Text style={styles.deleteButtonText}>Delete Entire Site</Text>
         </TouchableOpacity>
 
@@ -576,7 +581,7 @@ export default function SiteDetailsScreen() {
                   style={styles.modalItem}
                   onPress={() => handleModelSelected(modelData.unit.id)}
                 >
-                  <Ionicons name="cube" size={24} color="#A78BFA" />
+                  <Ionicons name="cube" size={24} color={theme.colors.primary} />
                   <View style={styles.modalItemInfo}>
                     <Text style={styles.modalItemTitle}>
                       {modelData.unit.model.modelNumber}
@@ -663,10 +668,10 @@ export default function SiteDetailsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0F172A',
+    backgroundColor: theme.colors.background,
     paddingTop: 60,
   },
   scrollView: {
@@ -681,7 +686,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   headerCard: {
-    backgroundColor: '#1E293B',
+    backgroundColor: theme.colors.backgroundSecondary,
     borderRadius: 16,
     padding: 24,
     alignItems: 'center',
@@ -691,7 +696,7 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: '#312E81',
+    backgroundColor: theme.colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 16,
@@ -699,13 +704,13 @@ const styles = StyleSheet.create({
   siteName: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#F1F5F9',
+    color: theme.colors.text,
     marginBottom: 4,
     textAlign: 'center',
   },
   modelCount: {
     fontSize: 16,
-    color: '#94A3B8',
+    color: theme.colors.textSecondary,
   },
   section: {
     marginTop: 24,
@@ -714,7 +719,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#F1F5F9',
+    color: theme.colors.text,
     marginBottom: 16,
   },
   actionButton: {
@@ -727,37 +732,46 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   primaryAction: {
-    backgroundColor: '#A78BFA',
+    backgroundColor: theme.colors.primary + '20',
+    borderWidth: 1,
+    borderColor: theme.colors.primary,
   },
   secondaryAction: {
-    backgroundColor: '#1E293B',
-    borderWidth: 2,
-    borderColor: '#A78BFA',
+    backgroundColor: theme.colors.backgroundSecondary,
+    borderWidth: 1,
+    borderColor: theme.colors.secondary,
   },
   actionButtonTextPrimary: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#FFF',
+    color: theme.colors.textSecondary,
   },
   actionButtonTextSecondary: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#A78BFA',
+    color: theme.colors.secondary,
   },
   modelCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1E293B',
+    backgroundColor: theme.colors.backgroundSecondary,
     padding: 16,
     borderRadius: 12,
     marginBottom: 2,
     gap: 12,
   },
+  modelIconWrapper: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: theme.colors.backgroundTertiary + '90',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   modelIcon: {
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: '#312E81',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -767,12 +781,12 @@ const styles = StyleSheet.create({
   modelNumber: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#F1F5F9',
+    color: theme.colors.text,
     marginBottom: 4,
   },
   modelMeta: {
     fontSize: 14,
-    color: '#94A3B8',
+    color: theme.colors.textSecondary,
   },
   modelActions: {
     flexDirection: 'row',
@@ -783,7 +797,7 @@ const styles = StyleSheet.create({
     padding: 8,
   },
   expandedContent: {
-    backgroundColor: '#0F172A',
+    backgroundColor: theme.colors.background,
     paddingHorizontal: 16,
     paddingBottom: 16,
     marginBottom: 12,
@@ -795,7 +809,7 @@ const styles = StyleSheet.create({
   expandedSectionTitle: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#94A3B8',
+    color: theme.colors.textSecondary,
     marginBottom: 12,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
@@ -808,18 +822,18 @@ const styles = StyleSheet.create({
   },
   detailLabel: {
     fontSize: 14,
-    color: '#94A3B8',
+    color: theme.colors.textSecondary,
   },
   detailValue: {
     fontSize: 14,
-    color: '#F1F5F9',
+    color: theme.colors.text,
     flex: 1,
   },
   manualRow: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 12,
-    backgroundColor: '#1E293B',
+    backgroundColor: theme.colors.backgroundSecondary,
     borderRadius: 8,
     marginBottom: 8,
     gap: 12,
@@ -830,21 +844,21 @@ const styles = StyleSheet.create({
   manualRowTitle: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#F1F5F9',
+    color: theme.colors.text,
     marginBottom: 2,
   },
   manualRowMeta: {
     fontSize: 12,
-    color: '#94A3B8',
+    color: theme.colors.textSecondary,
   },
   pendingBanner: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     padding: 14,
-    backgroundColor: 'rgba(68, 170, 232, 0.1)',
+    backgroundColor: theme.colors.backgroundTertiary,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: 'rgba(68, 170, 232, 0.25)',
+    borderColor: theme.colors.border,
     gap: 12,
   },
   pendingBannerText: {
@@ -853,19 +867,19 @@ const styles = StyleSheet.create({
   pendingBannerTitle: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#44AAE8',
+    color: theme.colors.secondary,
     marginBottom: 3,
   },
   pendingBannerDesc: {
     fontSize: 13,
-    color: '#6E8DA8',
+    color: theme.colors.textSecondary,
     lineHeight: 18,
   },
   chatRow: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 12,
-    backgroundColor: '#1E293B',
+    backgroundColor: theme.colors.backgroundSecondary,
     borderRadius: 8,
     marginBottom: 8,
     gap: 12,
@@ -876,12 +890,12 @@ const styles = StyleSheet.create({
   chatRowQuestion: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#F1F5F9',
+    color: theme.colors.text,
     marginBottom: 2,
   },
   chatRowTimestamp: {
     fontSize: 11,
-    color: '#64748B',
+    color: theme.colors.textSecondary,
   },
   deleteButton: {
     flexDirection: 'row',
@@ -890,18 +904,18 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#DC2626',
+    borderColor: theme.colors.danger,
     gap: 8,
     marginTop: 12,
   },
   deleteButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#DC2626',
+    color: theme.colors.danger,
   },
   errorText: {
     fontSize: 16,
-    color: '#94A3B8',
+    color: theme.colors.textSecondary,
   },
   bottomSpacer: {
     height: 40,
@@ -913,7 +927,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: '#1E293B',
+    backgroundColor: theme.colors.backgroundSecondary,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     padding: 24,
@@ -922,12 +936,12 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 22,
     fontWeight: '700',
-    color: '#F1F5F9',
+    color: theme.colors.text,
     marginBottom: 8,
   },
   modalSubtitle: {
     fontSize: 16,
-    color: '#94A3B8',
+    color: theme.colors.textSecondary,
     marginBottom: 24,
   },
   modalList: {
@@ -937,7 +951,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     padding: 16,
-    backgroundColor: '#0F172A',
+    backgroundColor: theme.colors.background,
     borderRadius: 12,
     marginBottom: 12,
     gap: 12,
@@ -948,12 +962,12 @@ const styles = StyleSheet.create({
   modalItemTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#F1F5F9',
+    color: theme.colors.text,
     marginBottom: 4,
   },
   modalItemSubtitle: {
     fontSize: 14,
-    color: '#94A3B8',
+    color: theme.colors.textSecondary,
   },
   modalCancelButton: {
     padding: 16,
@@ -963,7 +977,7 @@ const styles = StyleSheet.create({
   modalCancelText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#94A3B8',
+    color: theme.colors.textSecondary,
   },
   // Edit button styles
   editButton: {
@@ -973,7 +987,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: 'rgba(167, 139, 250, 0.1)',
+    backgroundColor: theme.colors.backgroundTertiary,
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 10,
@@ -985,7 +999,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   editModalContent: {
-    backgroundColor: '#1E293B',
+    backgroundColor: theme.colors.backgroundSecondary,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     padding: 24,
@@ -994,18 +1008,18 @@ const styles = StyleSheet.create({
   editModalTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#F1F5F9',
+    color: theme.colors.text,
     marginBottom: 20,
   },
   editInput: {
-    backgroundColor: '#0F172A',
+    backgroundColor: theme.colors.background,
     borderRadius: 12,
     padding: 16,
     fontSize: 16,
-    color: '#F1F5F9',
+    color: theme.colors.text,
     marginBottom: 20,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: theme.colors.border,
   },
   editModalButtons: {
     flexDirection: 'row',
@@ -1019,19 +1033,21 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   editModalCancelButton: {
-    backgroundColor: '#334155',
+    backgroundColor: theme.colors.backgroundTertiary,
   },
   editModalCancelText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#F1F5F9',
+    color: theme.colors.text,
   },
   editModalSaveButton: {
-    backgroundColor: '#A78BFA',
-  },
+    backgroundColor: theme.colors.primary + '20',
+    borderWidth: 1,
+    borderColor: theme.colors.primary,
+  }, 
   editModalSaveText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#ffffff',
+    color: theme.colors.text,
   },
 });

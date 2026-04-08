@@ -25,7 +25,7 @@ import Markdown from 'react-native-markdown-display';
 import * as chatService from '@/services/api/chat.service';
 import { savedUnitsService } from '@/services/api/savedUnits.service';
 import { getManualPublicUrl } from '@/services/supabase';
-
+import { useTheme } from '@/contexts/ThemeContext';
 interface Message {
   id: string;
   role: 'user' | 'assistant' | 'system';
@@ -60,7 +60,8 @@ export default function UnitChatScreen() {
   const [isManualless, setIsManualless] = useState(false);
   const flatListRef = useRef<FlatList>(null);
   const streamingContentRef = useRef('');
-
+  const { theme } = useTheme();
+  const styles = createStyles(theme);
   // Check if this model has manuals — if not, show web-search banner
   useEffect(() => {
     async function checkManuals() {
@@ -372,7 +373,7 @@ export default function UnitChatScreen() {
               <Text style={styles.webSourceUrl} numberOfLines={2}>
                 {item.url}
               </Text>
-              <Ionicons name="open-outline" size={16} color="#60A5FA" style={{ marginLeft: 4 }} />
+              <Ionicons name="open-outline" size={16} color={theme.colors.primary} style={{ marginLeft: 4 }} />
             </TouchableOpacity>
           ))}
         </View>
@@ -567,7 +568,7 @@ export default function UnitChatScreen() {
         >
           {!isUser && !isSystem && (
             <View style={styles.aiHeader}>
-              <Ionicons name="sparkles" size={16} color="#A78BFA" />
+              <Ionicons name="sparkles" size={16} color={theme.colors.primary} />
               <Text style={styles.aiLabel}>OEM TechTalk AI Assistant</Text>
             </View>
           )}
@@ -658,12 +659,12 @@ export default function UnitChatScreen() {
         <TouchableOpacity style={styles.closeButton} onPress={() => {
           closeModal();
         }}>
-          <Ionicons name="close" size={20} color="#A78BFA" />
+          <Ionicons name="close" size={20} color={theme.colors.primary} />
         </TouchableOpacity>
         {/* Loading History Indicator */}
         {loadingHistory && (
           <View style={styles.loadingHistoryOverlay}>
-            <ActivityIndicator size="large" color="#A78BFA" />
+            <ActivityIndicator size="large" color={theme.colors.primary} />
             <Text style={styles.loadingHistoryText}>Loading conversation...</Text>
           </View>
         )}
@@ -770,10 +771,10 @@ export default function UnitChatScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0F172A',
+    backgroundColor: theme.colors.background,
   },
   chatContainer: {
     flex: 1,
@@ -784,7 +785,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(15, 23, 42, 0.95)',
+    backgroundColor: theme.colors.background + '95',
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 1000,
@@ -792,7 +793,7 @@ const styles = StyleSheet.create({
   },
   loadingHistoryText: {
     fontSize: 16,
-    color: '#A78BFA',
+    color: theme.colors.primary,
     fontWeight: '600',
   },
   messagesList: {
@@ -813,14 +814,17 @@ const styles = StyleSheet.create({
     maxWidth: '80%',
     padding: 12,
     borderRadius: 16,
-    backgroundColor: '#1E293B',
+    backgroundColor: theme.colors.backgroundSecondary,
   },
   userMessageBubble: {
-    backgroundColor: '#A78BFA',
+    backgroundColor: theme.colors.backgroundSecondary,
+    borderWidth: 1,
+    borderColor: theme.colors.primary,
     borderBottomRightRadius: 4,
+    fontWeight: '600',
   },
   systemMessageBubble: {
-    backgroundColor: '#1E3A5F',
+    backgroundColor: theme.colors.backgroundSecondary,
     maxWidth: '90%',
   },
   aiHeader: {
@@ -832,27 +836,27 @@ const styles = StyleSheet.create({
   aiLabel: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#A78BFA',
+    color: theme.colors.textSecondary,
   },
   messageText: {
     fontSize: 16,
-    color: '#F1F5F9',
+    color: theme.colors.text,
     lineHeight: 22,
   },
   userMessageText: {
-    color: '#FFF',
+    color: theme.colors.text,
   },
   systemMessageText: {
     fontSize: 14,
-    color: '#CBD5E1',
+    color: theme.colors.textSecondary,
   },
   timestamp: {
     fontSize: 11,
-    color: '#64748B',
+    color: theme.colors.textSecondary,
     marginTop: 6,
   },
   userTimestamp: {
-    color: '#E9D5FF',
+    color: theme.colors.textSecondary,
   },
   loadingContainer: {
     padding: 16,
@@ -861,7 +865,7 @@ const styles = StyleSheet.create({
   loadingDots: {
     flexDirection: 'row',
     gap: 6,
-    backgroundColor: '#1E293B',
+    backgroundColor: theme.colors.backgroundSecondary,
     padding: 12,
     borderRadius: 16,
   },
@@ -870,10 +874,10 @@ const styles = StyleSheet.create({
     paddingTop: 8,
   },
   streamingMessageBubble: {
-    backgroundColor: '#1E293B',
+    backgroundColor: theme.colors.backgroundSecondary,
     borderRadius: 16,
     padding: 16,
-    shadowColor: '#000',
+    shadowColor: theme.colors.text,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -885,13 +889,13 @@ const styles = StyleSheet.create({
     marginTop: 12,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: '#334155',
+    borderTopColor: theme.colors.border,
   },
   dot: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#64748B',
+    backgroundColor: theme.colors.textSecondary,
   },
   dot1: {
     opacity: 0.4,
@@ -909,13 +913,13 @@ const styles = StyleSheet.create({
   suggestionsTitle: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#94A3B8',
+    color: theme.colors.textSecondary,
     marginBottom: 12,
   },
   suggestionChip: {
-    backgroundColor: '#1E293B',
+    backgroundColor: theme.colors.backgroundSecondary,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: theme.colors.border,
     paddingVertical: 10,
     paddingHorizontal: 16,
     borderRadius: 20,
@@ -923,19 +927,19 @@ const styles = StyleSheet.create({
   },
   suggestionText: {
     fontSize: 14,
-    color: '#CBD5E1',
+    color: theme.colors.textSecondary,
   },
   inputContainer: {
     padding: 16,
     paddingTop: 8,
-    backgroundColor: '#1E293B',
+    backgroundColor: theme.colors.backgroundSecondary,
     borderTopWidth: 1,
-    borderTopColor: '#334155',
+    borderTopColor: theme.colors.border,
   },
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    backgroundColor: '#0F172A',
+    backgroundColor: theme.colors.backgroundSecondary,
     borderRadius: 24,
     paddingHorizontal: 16,
     paddingVertical: 8,
@@ -944,7 +948,7 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     fontSize: 16,
-    color: '#F1F5F9',
+    color: theme.colors.text,
     maxHeight: 100,
     paddingVertical: 8,
   },
@@ -952,47 +956,47 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#A78BFA',
+    backgroundColor: theme.colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
   },
   sendButtonDisabled: {
-    backgroundColor: '#1E293B',
+    backgroundColor: theme.colors.backgroundSecondary,
   },
   disclaimer: {
     fontSize: 11,
-    color: '#64748B',
+    color: theme.colors.textSecondary,
     marginTop: 8,
     textAlign: 'center',
   },
   // Markdown styles
   markdownBody: {
-    color: '#F1F5F9',
+    color: theme.colors.text,
   },
   markdownParagraph: {
-    color: '#F1F5F9',
+    color: theme.colors.textSecondary,
     fontSize: 15,
     lineHeight: 22,
     marginTop: 0,
     marginBottom: 12,
   },
   markdownHeading: {
-    color: '#F1F5F9',
+    color: theme.colors.textSecondary,
     fontWeight: '700',
     marginTop: 16,
     marginBottom: 8,
   },
   markdownBold: {
-    color: '#F1F5F9',
+    color: theme.colors.textSecondary,
     fontWeight: '700',
   },
   markdownItalic: {
-    color: '#F1F5F9',
+    color: theme.colors.textSecondary,
     fontStyle: 'italic',
   },
   markdownCodeInline: {
-    backgroundColor: '#334155',
-    color: '#A78BFA',
+    backgroundColor: theme.colors.backgroundSecondary,
+    color: theme.colors.primary,
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
@@ -1000,21 +1004,21 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   markdownCodeBlock: {
-    backgroundColor: '#0F172A',
-    color: '#E2E8F0',
+    backgroundColor: theme.colors.backgroundSecondary,
+    color: theme.colors.textSecondary,
     padding: 12,
     borderRadius: 8,
     marginVertical: 8,
     fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
     fontSize: 13,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: theme.colors.border,
   },
   markdownList: {
     marginBottom: 12,
   },
   markdownListItem: {
-    color: '#F1F5F9',
+    color: theme.colors.textSecondary,
     fontSize: 15,
     lineHeight: 22,
     marginBottom: 6,
@@ -1026,18 +1030,18 @@ const styles = StyleSheet.create({
     marginTop: 16,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: '#334155',
+    borderTopColor: theme.colors.border,
     alignItems: 'center',
   },
   sourcesLabel: {
     fontSize: 13,
-    color: '#94A3B8',
+    color: theme.colors.textSecondary,
     fontWeight: '600',
     marginRight: 4,
   },
   sourcesText: {
     fontSize: 13,
-    color: '#94A3B8',
+    color: theme.colors.textSecondary,
     marginRight: 4,
   },
   pageButton: {
@@ -1045,7 +1049,7 @@ const styles = StyleSheet.create({
   },
   pageLink: {
     fontSize: 13,
-    color: '#60A5FA', // Blue for clickable links
+    color: theme.colors.textSecondary, // Blue for clickable links
     fontWeight: '600',
     textDecorationLine: 'underline',
   },
@@ -1054,7 +1058,7 @@ const styles = StyleSheet.create({
     marginTop: 16,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: '#334155',
+    borderTopColor: theme.colors.border,
   },
   webSourceLink: {
     flexDirection: 'row',
@@ -1062,14 +1066,14 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 12,
     marginVertical: 4,
-    backgroundColor: 'rgba(96, 165, 250, 0.1)',
+    backgroundColor: theme.colors.backgroundSecondary,
     borderRadius: 8,
     borderLeftWidth: 3,
-    borderLeftColor: '#60A5FA',
+    borderLeftColor: theme.colors.primary,
   },
   webSourceNumber: {
     fontSize: 13,
-    color: '#60A5FA',
+    color: theme.colors.textSecondary,
     fontWeight: '600',
     marginRight: 8,
     minWidth: 20,
@@ -1077,7 +1081,7 @@ const styles = StyleSheet.create({
   webSourceUrl: {
     flex: 1,
     fontSize: 12,
-    color: '#60A5FA',
+    color: theme.colors.textSecondary,
     textDecorationLine: 'underline',
   },
   closeButton: {
@@ -1087,7 +1091,7 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 20,
-    backgroundColor: 'rgba(167, 139, 250, 0.1)',
+    backgroundColor: theme.colors.backgroundSecondary,
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 10,
