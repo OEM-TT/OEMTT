@@ -6,6 +6,7 @@
  * - "50P3C070540GMYCSDJ" → "50P3"
  * - "19XR-1234-ABC" → "19XR"
  * - "AAON-RN-030" → "RN-030"
+ * - "WWE19XRSSUWH33KJ3" → "19XR" (strips factory/plant prefix "WWE")
  */
 
 /**
@@ -17,8 +18,9 @@
  * 
  * Strategy:
  * 1. Remove common prefixes (OEM name if present)
- * 2. Extract the core model identifier (usually first 3-6 characters)
- * 3. Stop at first configuration delimiter (long numeric string, specific letters)
+ * 2. Strip unknown leading all-letter factory/plant codes (e.g. "WWE")
+ * 3. Extract the core model identifier (usually first 3-6 characters)
+ * 4. Stop at first configuration delimiter (long numeric string, specific letters)
  */
 export function extractBaseModel(fullModelNumber: string): string {
   if (!fullModelNumber) return '';
@@ -32,6 +34,12 @@ export function extractBaseModel(fullModelNumber: string): string {
     if (cleaned.startsWith(prefix)) {
       cleaned = cleaned.substring(prefix.length);
     }
+  }
+
+  // Strip unknown leading all-letter prefix (factory/plant codes like "WWE", "XY")
+  // Example: "WWE19XRSSUWH33KJ3" → "19XRSSUWH33KJ3"
+  if (/^[A-Z]{2,}\d/.test(cleaned)) {
+    cleaned = cleaned.replace(/^[A-Z]+(?=\d)/, '');
   }
 
   // Pattern 1: Letters followed by digits, then configuration codes
@@ -59,6 +67,16 @@ export function extractBaseModel(fullModelNumber: string): string {
     
     if (detailedMatch) {
       return detailedMatch[1];
+    }
+
+    // If the extracted base is unusually long AND there is still a config suffix
+    // remaining in the string, truncate to the typical base model length (4 chars).
+    // Example: "19XRSSUWH33KJ3" → base greedily matches "19XRSSUWH33" (11 chars),
+    // but 3 chars remain ("KJ3"), so we cap at 4 → "19XR".
+    // "30GTN060" → base is "30GTN060" (8 chars), cleaned.length === base.length
+    // (no remainder), so we do NOT truncate.
+    if (base.length > 6 && cleaned.length > base.length) {
+      return base.slice(0, 4);
     }
     
     return base;
@@ -99,23 +117,37 @@ export function extractBaseModel(fullModelNumber: string): string {
  * Returns array of variants to try when searching database
  * 
  * Example: "50P3C070540GMYCSDJ" → ["50P3C070540GMYCSDJ", "50P3"]
+ * Example: "WWE19XRSSUWH33KJ3" → ["WWE19XRSSUWH33KJ3", "19XR", "19XRSSUWH33KJ3", "19XRS"]
  */
 export function getModelSearchVariants(fullModelNumber: string): string[] {
   const variants = new Set<string>();
   
+  const upper = fullModelNumber.trim().toUpperCase();
+
   // Always include original
-  variants.add(fullModelNumber.trim().toUpperCase());
+  variants.add(upper);
   
   // Add base model
   const base = extractBaseModel(fullModelNumber);
-  if (base && base !== fullModelNumber.trim().toUpperCase()) {
+  if (base && base !== upper) {
     variants.add(base);
   }
   
   // Add common variations (remove spaces, dashes)
   const normalized = fullModelNumber.replace(/[\s-]/g, '').toUpperCase();
-  if (normalized !== fullModelNumber.trim().toUpperCase()) {
+  if (normalized !== upper) {
     variants.add(normalized);
+  }
+
+  // If the string starts with letters followed by digits (e.g. "WWE19XR..."),
+  // add the prefix-stripped form and short-form truncations so the DB
+  // contains-search can find the embedded base model.
+  // Example: "WWE19XRSSUWH33KJ3" → stripped "19XRSSUWH33KJ3", plus "19XR", "19XRS"
+  if (/^[A-Z]{2,}\d/.test(upper)) {
+    const stripped = upper.replace(/^[A-Z]+(?=\d)/, '');
+    variants.add(stripped);
+    if (stripped.length > 4) variants.add(stripped.slice(0, 4));
+    if (stripped.length > 5) variants.add(stripped.slice(0, 5));
   }
   
   return Array.from(variants);
@@ -132,4 +164,5 @@ export const TEST_CASES = [
   { input: 'RN-030', expected: 'RN-030' },
   { input: '30GTN060', expected: '30GTN060' }, // Full base model
   { input: '23XRV', expected: '23XRV' },
+  { input: 'WWE19XRSSUWH33KJ3', expected: '19XR' }, // Factory prefix + embedded model
 ];
